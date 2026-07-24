@@ -1,4 +1,4 @@
-import type { DriveItem } from "./types";
+import type { DriveItem } from "@/app/_lib/types";
 
 const DAY = 86_400_000;
 // Fixed reference point (not Date.now()) so seed timestamps are identical on

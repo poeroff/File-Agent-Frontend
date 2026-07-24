@@ -1,0 +1,14 @@
+services:
+  client:
+    build:
+      target: dev
+    # Turbopack's native file watcher doesn't see changes through Docker
+    # Desktop's Windows bind mount, so fall back to webpack + polling for dev.
+    command: ["pnpm", "exec", "next", "dev", "--webpack"]
+    environment:
+      - NODE_ENV=development
+      - WATCHPACK_POLLING=true
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+      - /app/.next

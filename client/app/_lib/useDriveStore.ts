@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { initialItems } from "./mock-data";
-import type { ActiveView, DriveItem, UploadTask, ViewMode } from "./types";
+import { initialItems } from "@/app/_lib/mock-data";
+import type { ActiveView, DriveItem, UploadTask, ViewMode } from "@/app/_lib/types";
 
 let idCounter = 0;
 function makeId(prefix: string): string {

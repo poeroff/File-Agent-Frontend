@@ -1,8 +1,8 @@
 "use client";
 
 import { CheckCircle2, ChevronDown, ChevronUp, Loader2, X } from "lucide-react";
-import { formatBytes } from "../_lib/format";
-import type { DriveStore } from "../_lib/useDriveStore";
+import { formatBytes } from "@/app/_lib/format";
+import type { DriveStore } from "@/app/_lib/useDriveStore";
 
 export function UploadTray({ store }: { store: DriveStore }) {
   if (store.uploads.length === 0) return null;

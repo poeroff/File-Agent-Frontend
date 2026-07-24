@@ -1,10 +1,10 @@
 "use client";
 
-import { useDriveStore } from "./_lib/useDriveStore";
-import { Sidebar } from "./_components/Sidebar";
-import { TopBar } from "./_components/TopBar";
-import { FileExplorer } from "./_components/FileExplorer";
-import { UploadTray } from "./_components/UploadTray";
+import { useDriveStore } from "@/app/_lib/useDriveStore";
+import { Sidebar } from "@/app/_components/Sidebar";
+import { TopBar } from "@/app/_components/TopBar";
+import { FileExplorer } from "@/app/_components/FileExplorer";
+import { UploadTray } from "@/app/_components/UploadTray";
 
 export function DriveApp({ userEmail }: { userEmail: string }) {
   const store = useDriveStore();

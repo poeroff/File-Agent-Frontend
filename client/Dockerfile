@@ -7,6 +7,10 @@ RUN apk add --no-cache libc6-compat
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
+FROM deps AS dev
+EXPOSE 3000
+CMD ["pnpm", "dev"]
+
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .

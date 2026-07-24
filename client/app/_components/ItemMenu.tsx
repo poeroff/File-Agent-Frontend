@@ -11,9 +11,9 @@ import {
   XCircle,
   type LucideIcon,
 } from "lucide-react";
-import { useClickOutside } from "../_lib/useClickOutside";
-import type { DriveItem } from "../_lib/types";
-import type { DriveStore } from "../_lib/useDriveStore";
+import { useClickOutside } from "@/app/_lib/useClickOutside";
+import type { DriveItem } from "@/app/_lib/types";
+import type { DriveStore } from "@/app/_lib/useDriveStore";
 
 export function ItemMenu({
   item,

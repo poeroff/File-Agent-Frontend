@@ -1,6 +1,6 @@
 import { Folder } from "lucide-react";
-import { colorForFile, iconForFile } from "../_lib/file-icon";
-import type { DriveItemType } from "../_lib/types";
+import { colorForFile, iconForFile } from "@/app/_lib/file-icon";
+import type { DriveItemType } from "@/app/_lib/types";
 
 export function FileIcon({
   type,

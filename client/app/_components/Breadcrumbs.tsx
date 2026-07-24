@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronRight } from "lucide-react";
-import type { DriveStore } from "../_lib/useDriveStore";
+import type { DriveStore } from "@/app/_lib/useDriveStore";
 
 const VIEW_LABELS: Record<string, string> = {
   recent: "Recent",

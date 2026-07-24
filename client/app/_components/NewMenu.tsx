@@ -2,9 +2,9 @@
 
 import { useRef, useState } from "react";
 import { FolderPlus, Plus, Upload, type LucideIcon } from "lucide-react";
-import { useClickOutside } from "../_lib/useClickOutside";
-import type { DriveStore } from "../_lib/useDriveStore";
-import { PromptDialog } from "./PromptDialog";
+import { useClickOutside } from "@/app/_lib/useClickOutside";
+import type { DriveStore } from "@/app/_lib/useDriveStore";
+import { PromptDialog } from "@/app/_components/PromptDialog";
 
 export function NewMenu({ store }: { store: DriveStore }) {
   const [open, setOpen] = useState(false);

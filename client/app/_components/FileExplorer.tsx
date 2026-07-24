@@ -12,13 +12,13 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { formatBytes, formatModifiedDate } from "../_lib/format";
-import type { DriveItem } from "../_lib/types";
-import type { DriveStore } from "../_lib/useDriveStore";
-import { Breadcrumbs } from "./Breadcrumbs";
-import { FileIcon } from "./FileIcon";
-import { ItemMenu } from "./ItemMenu";
-import { PromptDialog } from "./PromptDialog";
+import { formatBytes, formatModifiedDate } from "@/app/_lib/format";
+import type { DriveItem } from "@/app/_lib/types";
+import type { DriveStore } from "@/app/_lib/useDriveStore";
+import { Breadcrumbs } from "@/app/_components/Breadcrumbs";
+import { FileIcon } from "@/app/_components/FileIcon";
+import { ItemMenu } from "@/app/_components/ItemMenu";
+import { PromptDialog } from "@/app/_components/PromptDialog";
 
 export function FileExplorer({ store }: { store: DriveStore }) {
   const [renamingItem, setRenamingItem] = useState<DriveItem | null>(null);

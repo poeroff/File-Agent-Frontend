@@ -1,5 +1,8 @@
-import { DriveApp } from "./DriveApp";
+import { auth } from "@/auth";
+import { DriveApp } from "@/app/DriveApp";
 
-export default function Home() {
-  return <DriveApp userEmail="user@filedrive.app" />;
+export default async function Home() {
+  const session = await auth();
+
+  return <DriveApp userEmail={session?.user?.email ?? ""} />;
 }

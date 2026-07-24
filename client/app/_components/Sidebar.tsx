@@ -1,10 +1,10 @@
 "use client";
 
 import { Clock, HardDrive, Star, Trash2, type LucideIcon } from "lucide-react";
-import { formatBytes } from "../_lib/format";
-import { STORAGE_QUOTA_BYTES } from "../_lib/mock-data";
-import type { DriveStore } from "../_lib/useDriveStore";
-import { NewMenu } from "./NewMenu";
+import { formatBytes } from "@/app/_lib/format";
+import { STORAGE_QUOTA_BYTES } from "@/app/_lib/mock-data";
+import type { DriveStore } from "@/app/_lib/useDriveStore";
+import { NewMenu } from "@/app/_components/NewMenu";
 
 export function Sidebar({ store }: { store: DriveStore }) {
   const usedPct = Math.min(100, (store.usedBytes / STORAGE_QUOTA_BYTES) * 100);

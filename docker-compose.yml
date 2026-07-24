@@ -1,0 +1,9 @@
+services:
+  client:
+    build:
+      context: ./client
+    env_file:
+      - .env
+    ports:
+      - "${CLIENT_PORT:-3000}:3000"
+    restart: unless-stopped

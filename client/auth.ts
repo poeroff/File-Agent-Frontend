@@ -2,18 +2,29 @@ import NextAuth, { customFetch } from "next-auth";
 import Google from "next-auth/providers/google";
 
 // Docker Desktop's network path to Google occasionally hangs on connect
-// (UND_ERR_CONNECT_TIMEOUT) even though the endpoint is fine — retry a
-// couple of times before giving up instead of failing the whole sign-in.
+// (~10s) even though Google itself answers in <250ms. Cap each attempt at a
+// few seconds so a stalled connect fails fast and we retry, instead of the
+// default connect timeout (~10s) blowing up the whole sign-in to 10-20s.
+const PER_ATTEMPT_TIMEOUT_MS = 5000;
+
 async function fetchWithRetry(
-  ...args: Parameters<typeof fetch>
+  input: Parameters<typeof fetch>[0],
+  init?: Parameters<typeof fetch>[1],
 ): ReturnType<typeof fetch> {
   const attempts = 3;
   for (let attempt = 1; attempt <= attempts; attempt++) {
+    const timeout = AbortSignal.timeout(PER_ATTEMPT_TIMEOUT_MS);
+    const signal = init?.signal
+      ? AbortSignal.any([init.signal, timeout])
+      : timeout;
     try {
-      return await fetch(...args);
+      return await fetch(input, { ...init, signal });
     } catch (error) {
       if (attempt === attempts) throw error;
-      console.warn(`[auth] Google request failed (attempt ${attempt}/${attempts}), retrying...`, error);
+      console.warn(
+        `[auth] Google request failed (attempt ${attempt}/${attempts}), retrying...`,
+        error,
+      );
     }
   }
   throw new Error("unreachable");
@@ -56,9 +67,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       // `account`/`profile` are only populated right after a successful
       // sign-in (not on later requests that just reuse the session).
       if (account && profile) {
-        console.log("[auth] Google sign-in tokens:", account);
-        console.log("[auth] Google profile:", profile);
-
         try {
           const response = await fetch(`${process.env.BACKEND_URL}/auth/google`, {
             method: "POST",

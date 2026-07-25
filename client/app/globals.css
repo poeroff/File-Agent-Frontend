@@ -1,26 +1,311 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------------------
+   File Agent Drive — "console & canvas"
+
+   Two families of surface. The *chrome* (top bar, rail, trays) is the
+   instrument panel around the work; the *canvas* holds the files. Both follow
+   the OS theme: paper-light by default, deep charcoal in dark mode. The chrome
+   always sits a half-step apart from the canvas so the panel still reads as a
+   panel.
+
+   `--chrome-hover` / `--chrome-fill` are the translucent overlays used on
+   chrome (hover states, input fills, progress tracks). They are tokens rather
+   than literal white/black so a chrome surface works in either theme.
+
+   Semantic tokens below are mapped into Tailwind, so components use
+   `bg-card`, `text-muted`, `border-line` instead of scattered zinc/dark pairs.
+--------------------------------------------------------------------------- */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Canvas — light mode */
+  --canvas: #e9edeb;
+  --canvas-sunken: #dfe5e3;
+  --card: #ffffff;
+  --card-raised: #ffffff;
+  --line: #e0e5e4;
+  --line-strong: #c8d1cf;
+  --text: #0f1614;
+  --text-muted: #4d5854;
+  --text-faint: #6b7672;
+  --scrim: #16211e59;
+
+  /* Accents */
+  --jade: #12a594;
+  --jade-strong: #0d8b7c;
+  --jade-text: #0b7a6d;
+  --jade-soft: #12a5941f;
+  --kraft: #d1902a;
+  --kraft-text: #a8721f;
+  --kraft-soft: #d1902a24;
+  --danger: #d9484d;
+  --danger-text: #c2373c;
+  --danger-soft: #d9484d1f;
+
+  /* Chrome — light mode: a clean white panel against the paper canvas */
+  --chrome: #ffffff;
+  --chrome-raised: #eceff0;
+  --chrome-line: #dfe4e3;
+  --chrome-text: #0f1614;
+  --chrome-muted: #566360;
+  --chrome-hover: #16211e0f;
+  --chrome-fill: #16211e14;
+
+  color-scheme: light;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
+/* Dark palette. Applied two ways:
+   - by OS preference, UNLESS the user has explicitly forced light;
+   - by explicit choice via data-theme="dark" (the in-app toggle).
+   The two selectors share the same declarations. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme="light"]) {
+    /* Canvas sits a step above the rail so the chrome still reads as chrome. */
+    --canvas: #101418;
+    --canvas-sunken: #0a0d10;
+    --card: #171c22;
+    --card-raised: #1d2329;
+    --line: #262d34;
+    --line-strong: #384249;
+    --text: #e7ebea;
+    --text-muted: #a7b1af;
+    --text-faint: #838d8b;
+    --scrim: #05070999;
+
+    --chrome: #0b0e11;
+    --chrome-raised: #14191e;
+    --chrome-line: #1e252b;
+    --chrome-text: #e8edec;
+    --chrome-muted: #8b9694;
+    --chrome-hover: #ffffff0f;
+    --chrome-fill: #ffffff1a;
+
+    --jade: #14b3a0;
+    --jade-strong: #2ac9b5;
+    --jade-text: #35d0bb;
+    --jade-soft: #14b3a029;
+    --kraft: #d99a2b;
+    --kraft-text: #e5ae4d;
+    --kraft-soft: #d99a2b26;
+    --danger: #e5484d;
+    --danger-text: #ff6369;
+    --danger-soft: #e5484d29;
+
+    color-scheme: dark;
   }
 }
 
+:root[data-theme="dark"] {
+  --canvas: #101418;
+  --canvas-sunken: #0a0d10;
+  --card: #171c22;
+  --card-raised: #1d2329;
+  --line: #262d34;
+  --line-strong: #384249;
+  --text: #e7ebea;
+  --text-muted: #a7b1af;
+  --text-faint: #838d8b;
+  --scrim: #05070999;
+
+  --chrome: #0b0e11;
+  --chrome-raised: #14191e;
+  --chrome-line: #1e252b;
+  --chrome-text: #e8edec;
+  --chrome-muted: #8b9694;
+  --chrome-hover: #ffffff0f;
+  --chrome-fill: #ffffff1a;
+
+  --jade: #14b3a0;
+  --jade-strong: #2ac9b5;
+  --jade-text: #35d0bb;
+  --jade-soft: #14b3a029;
+  --kraft: #d99a2b;
+  --kraft-text: #e5ae4d;
+  --kraft-soft: #d99a2b26;
+  --danger: #e5484d;
+  --danger-text: #ff6369;
+  --danger-soft: #e5484d29;
+
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-canvas-sunken: var(--canvas-sunken);
+  --color-card: var(--card);
+  --color-card-raised: var(--card-raised);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-ink: var(--text);
+  --color-muted: var(--text-muted);
+  --color-faint: var(--text-faint);
+  --color-scrim: var(--scrim);
+
+  --color-jade: var(--jade);
+  --color-jade-strong: var(--jade-strong);
+  --color-jade-text: var(--jade-text);
+  --color-jade-soft: var(--jade-soft);
+  --color-kraft: var(--kraft);
+  --color-kraft-text: var(--kraft-text);
+  --color-kraft-soft: var(--kraft-soft);
+  --color-danger: var(--danger);
+  --color-danger-text: var(--danger-text);
+  --color-danger-soft: var(--danger-soft);
+
+  --color-chrome: var(--chrome);
+  --color-chrome-raised: var(--chrome-raised);
+  --color-chrome-line: var(--chrome-line);
+  --color-chrome-text: var(--chrome-text);
+  --color-chrome-muted: var(--chrome-muted);
+  --color-chrome-hover: var(--chrome-hover);
+  --color-chrome-fill: var(--chrome-fill);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  --shadow-card: 0 1px 2px #0f16140d, 0 1px 3px #0f161408;
+  --shadow-lift: 0 4px 6px -2px #0f161414, 0 12px 20px -8px #0f16141f;
+  --shadow-pop: 0 8px 12px -6px #0f16141f, 0 24px 48px -16px #0f16142e;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--canvas);
+  color: var(--text);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+::selection {
+  background: var(--jade-soft);
+  color: var(--text);
+}
+
+/* Thin, low-contrast scrollbars so long file lists stay quiet. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-clip: content-box;
+  background-color: var(--line-strong);
+  border: 3px solid transparent;
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-faint);
+}
+
+/* --- Motion ---------------------------------------------------------------
+   Entrances are short and directional: content settles up into place. The
+   drifting/breathing loops are reserved for the sign-in panel.
+------------------------------------------------------------------------- */
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sheen {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(220%);
+  }
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(var(--drift-tilt, 0deg));
+  }
+  50% {
+    transform: translate3d(0, -14px, 0) rotate(calc(var(--drift-tilt, 0deg) * -1));
+  }
+}
+
+@keyframes halo {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.06);
+  }
+}
+
+/* Fill mode is `backwards`, not `both`: it still holds the from-state during
+   the stagger delay, but stops overriding styles once the animation ends. With
+   `both`, the final `transform: none` keyframe lingers as an identity matrix,
+   which silently makes every animated element a containing block for
+   position: fixed children (it broke modals opened from inside a card). */
+@utility anim-fade-up {
+  animation: fade-up 0.34s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@utility anim-pop-in {
+  animation: pop-in 0.16s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@utility anim-fade-in {
+  animation: fade-in 0.16s ease-out backwards;
+}
+
+@utility anim-sheen {
+  animation: sheen 1.6s ease-in-out infinite;
+}
+
+@utility anim-drift {
+  animation: drift 9s ease-in-out infinite;
+}
+
+@utility anim-halo {
+  animation: halo 6s ease-in-out infinite;
+}
+
+/* Grid/list entrances are decorative; loops are ambient. Neither should run
+   for people who ask the OS to reduce motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

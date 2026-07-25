@@ -1,9 +1,11 @@
 "use client";
 
-import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { HardDrive, WifiOff } from "lucide-react";
+import { Info, WifiOff } from "lucide-react";
+import { BrandMark, Wordmark } from "@/app/_components/Brand";
+import { FileTile } from "@/app/_components/FileIcon";
 
 const ERROR_MESSAGES: Record<string, string> = {
   // In this app, NextAuth collapses most sign-in failures (Google or our own
@@ -20,7 +22,7 @@ function LoginError() {
   const message = ERROR_MESSAGES[error] ?? "로그인 중 문제가 발생했어요. 다시 시도해 주세요.";
 
   return (
-    <div className="mb-4 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+    <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-kraft/30 bg-kraft-soft px-3.5 py-3 text-[13px] text-kraft-text">
       <WifiOff className="mt-0.5 h-4 w-4 shrink-0" />
       <span>{message}</span>
     </div>
@@ -50,91 +52,142 @@ function GoogleIcon() {
   );
 }
 
+/**
+ * The showcase half of the sign-in screen. It shows the product's own object —
+ * a file list, exactly as it looks inside — rather than an abstract graphic, so
+ * the first screen already explains what the app is. Nothing here animates.
+ */
+function ShowcasePanel() {
+  return (
+    <div className="relative hidden overflow-hidden bg-chrome p-12 text-chrome-text lg:flex lg:flex-col">
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-jade/[0.06] via-transparent to-transparent"
+      />
+
+      <div className="relative flex items-center gap-2.5">
+        <BrandMark className="h-8 w-8" />
+        <Wordmark />
+      </div>
+
+      <div className="relative my-auto w-full max-w-[26rem]">
+        <h1 className="break-keep text-[30px] font-semibold leading-[1.3] tracking-tight">
+          올려둔 파일이
+          <br />
+          <span className="text-jade-text">항상 제자리에</span> 있도록.
+        </h1>
+        <p className="mt-3.5 break-keep text-[15px] leading-relaxed text-chrome-muted">
+          끌어다 놓아 업로드하고, 폴더로 정리하고, 이름으로 바로 찾으세요. 지운
+          파일은 휴지통에서 되돌릴 수 있어요.
+        </p>
+
+        {/* A real slice of the app: the same rows, the same type, no mockup. */}
+        <div className="mt-9 overflow-hidden rounded-xl border border-line bg-card shadow-lift">
+          <div className="flex items-center justify-between border-b border-line px-4 py-2.5 text-[13px] text-muted">
+            <span className="font-medium text-ink">내 드라이브</span>
+            <span>3개</span>
+          </div>
+          <PreviewRow name="디자인 자료" meta="폴더" folder />
+          <PreviewRow name="2026-예산안.pdf" meta="PDF · 2.4 MB" />
+          <PreviewRow name="촬영-원본.mp4" meta="MP4 · 148 MB" last />
+        </div>
+      </div>
+
+      <ul className="relative flex flex-wrap gap-x-6 gap-y-2 text-[13px] text-chrome-muted">
+        <li className="flex items-center gap-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-jade" />
+          끌어다 놓기 업로드
+        </li>
+        <li className="flex items-center gap-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-jade" />
+          폴더 통째로 업로드
+        </li>
+        <li className="flex items-center gap-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-jade" />
+          휴지통에서 복원
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+function PreviewRow({
+  name,
+  meta,
+  folder,
+  last,
+}: {
+  name: string;
+  meta: string;
+  folder?: boolean;
+  last?: boolean;
+}) {
+  return (
+    <div
+      aria-hidden
+      className={`flex items-center gap-3 px-4 py-2.5 ${last ? "" : "border-b border-line/60"}`}
+    >
+      <FileTile type={folder ? "folder" : "file"} name={name} />
+      <span className="min-w-0 flex-1 truncate text-sm text-ink">{name}</span>
+      <span className="shrink-0 text-xs tabular-nums text-muted">{meta}</span>
+    </div>
+  );
+}
+
 export function LoginForm() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-
-  function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    // TODO: replace with a real call to the backend login endpoint.
-    // For now this just drops a placeholder session cookie so proxy.ts has something to check.
-    document.cookie = `session=${encodeURIComponent(email)}; path=/`;
-    router.push("/");
-  }
-
   function handleGoogleLogin() {
     signIn("google", { redirectTo: "/" });
   }
 
   return (
-    <div className="flex min-h-dvh w-full items-center justify-center bg-zinc-50 p-4 dark:bg-zinc-950">
-      <div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mb-6 flex flex-col items-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-white">
-            <HardDrive className="h-5 w-5" />
+    <div className="grid min-h-dvh w-full bg-canvas lg:grid-cols-[1.05fr_1fr]">
+      <ShowcasePanel />
+
+      <div className="flex items-center justify-center p-5 sm:p-8">
+        {/* The form sits on a card so it reads as one focused task on the
+            canvas, instead of floating text on an empty field. */}
+        <div className="w-full max-w-[23rem] rounded-2xl border border-line bg-card p-6 shadow-card sm:p-7">
+          <div className="mb-8 flex flex-col items-center gap-3 lg:items-start">
+            <div className="flex items-center gap-2.5 lg:hidden">
+              <BrandMark className="h-9 w-9" />
+              <Wordmark className="text-ink" />
+            </div>
+            <div className="text-center lg:text-left">
+              <h2 className="text-[22px] font-semibold tracking-tight">시작하기</h2>
+              <p className="mt-1.5 break-keep text-sm text-muted">
+                Google 계정으로 내 드라이브에 로그인하세요.
+              </p>
+            </div>
           </div>
-          <h1 className="text-lg font-medium text-zinc-900 dark:text-zinc-100">Sign in to Drive</h1>
-          <p className="text-sm text-zinc-500">Manage your files in one place</p>
-        </div>
 
-        <Suspense fallback={null}>
-          <LoginError />
-        </Suspense>
-
-        <button
-          type="button"
-          onClick={handleGoogleLogin}
-          className="flex w-full items-center justify-center gap-2 rounded-md border border-zinc-300 bg-white py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
-        >
-          <GoogleIcon />
-          Continue with Google
-        </button>
-
-        <div className="my-5 flex items-center gap-3">
-          <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
-          <span className="text-xs text-zinc-400">or</span>
-          <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
-        </div>
-
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <div>
-            <label className="mb-1 block text-xs text-zinc-500">Email</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs text-zinc-500">Password</label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="••••••••"
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800"
-            />
-          </div>
+          <Suspense fallback={null}>
+            <LoginError />
+          </Suspense>
 
           <button
-            type="submit"
-            className="mt-2 rounded-md bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            type="button"
+            onClick={handleGoogleLogin}
+            className="flex h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-line-strong bg-card text-sm font-medium transition hover:bg-canvas focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jade"
           >
-            Sign in
+            <GoogleIcon />
+            Google 계정으로 계속하기
           </button>
-        </form>
 
-        <p className="mt-5 text-center text-sm text-zinc-500">
-          Don&apos;t have an account?{" "}
-          <a href="#" className="font-medium text-blue-600 hover:underline">
-            Sign up
-          </a>
-        </p>
+          {/* Signing in with Google *is* signing up: the backend creates the
+              account and provisions its storage on the first sign-in. */}
+          <p className="mt-4 break-keep text-[13px] leading-relaxed text-muted">
+            처음이신가요? Google 계정으로 로그인하면 계정과 저장 공간이 자동으로
+            만들어져요.
+          </p>
+
+          <p className="mt-6 flex items-start gap-2 rounded-xl bg-canvas px-3.5 py-3 text-xs leading-relaxed text-muted">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-faint" />
+            <span className="break-keep">
+              이메일·비밀번호 로그인은 아직 준비 중이에요. 지금은 Google 로그인만
+              사용할 수 있어요.
+            </span>
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -1,55 +1,70 @@
 "use client";
 
+import { useMemo } from "react";
 import { Clock, HardDrive, Star, Trash2, type LucideIcon } from "lucide-react";
-import { formatBytes } from "@/app/_lib/format";
-import { STORAGE_QUOTA_BYTES } from "@/app/_lib/mock-data";
+import type { ActiveView } from "@/app/_lib/types";
 import type { DriveStore } from "@/app/_lib/useDriveStore";
-import { NewMenu } from "@/app/_components/NewMenu";
+import { StorageMeter } from "@/app/_components/StorageMeter";
+import { UploadActions } from "@/app/_components/UploadActions";
 
 export function Sidebar({ store }: { store: DriveStore }) {
-  const usedPct = Math.min(100, (store.usedBytes / STORAGE_QUOTA_BYTES) * 100);
+  const counts = useMemo(() => {
+    let drive = 0;
+    let starred = 0;
+    let trash = 0;
+    for (const item of store.items) {
+      if (item.trashed) {
+        trash += 1;
+        continue;
+      }
+      drive += 1;
+      if (item.starred) starred += 1;
+    }
+    return { drive, starred, trash };
+  }, [store.items]);
+
+  const recentCount = useMemo(
+    () => store.items.filter((item) => item.type === "file" && !item.trashed).length,
+    [store.items],
+  );
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col gap-5 overflow-y-auto border-r border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
-      <NewMenu store={store} />
+    <aside className="flex w-[68px] shrink-0 flex-col gap-4 overflow-y-auto border-r border-chrome-line bg-chrome p-2 text-chrome-text md:w-64 md:gap-5 md:p-3">
+      <UploadActions store={store} />
 
       <nav className="flex flex-col gap-0.5">
         <NavItem
           icon={HardDrive}
-          label="My Drive"
-          active={store.activeView === "my-drive"}
-          onClick={() => store.setView("my-drive")}
+          label="내 드라이브"
+          count={counts.drive}
+          view="my-drive"
+          store={store}
         />
         <NavItem
           icon={Clock}
-          label="Recent"
-          active={store.activeView === "recent"}
-          onClick={() => store.setView("recent")}
+          label="최근 항목"
+          count={recentCount}
+          view="recent"
+          store={store}
         />
         <NavItem
           icon={Star}
-          label="Starred"
-          active={store.activeView === "starred"}
-          onClick={() => store.setView("starred")}
+          label="중요"
+          count={counts.starred}
+          view="starred"
+          store={store}
         />
         <NavItem
           icon={Trash2}
-          label="Trash"
-          active={store.activeView === "trash"}
-          onClick={() => store.setView("trash")}
+          label="휴지통"
+          count={counts.trash}
+          view="trash"
+          store={store}
         />
       </nav>
 
-      <div className="mt-auto space-y-2 px-1">
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
-          <div
-            className="h-full rounded-full bg-blue-500"
-            style={{ width: `${usedPct}%` }}
-          />
-        </div>
-        <p className="text-xs text-zinc-500">
-          {formatBytes(store.usedBytes)} of {formatBytes(STORAGE_QUOTA_BYTES)} used
-        </p>
+      <div className="mt-auto hidden md:block">
+        <StorageMeter items={store.items} />
       </div>
     </aside>
   );
@@ -58,25 +73,45 @@ export function Sidebar({ store }: { store: DriveStore }) {
 function NavItem({
   icon: Icon,
   label,
-  active,
-  onClick,
+  count,
+  view,
+  store,
 }: {
   icon: LucideIcon;
   label: string;
-  active: boolean;
-  onClick: () => void;
+  count: number;
+  view: ActiveView;
+  store: DriveStore;
 }) {
+  const active = store.activeView === view;
+
   return (
     <button
-      onClick={onClick}
-      className={`flex items-center gap-3 rounded-full px-4 py-2 text-left text-sm transition ${
+      onClick={() => store.setView(view)}
+      aria-current={active ? "page" : undefined}
+      title={label}
+      className={`group relative flex items-center justify-center gap-3 rounded-lg py-2.5 text-left text-[15px] transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jade md:justify-start md:py-2 md:pl-3 md:pr-2.5 ${
         active
-          ? "bg-blue-100 font-medium text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"
-          : "text-zinc-600 hover:bg-zinc-200/60 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          ? "bg-jade-soft font-medium text-jade-text"
+          : "text-chrome-text/70 hover:bg-chrome-hover hover:text-chrome-text"
       }`}
     >
-      <Icon className="h-4 w-4" />
-      {label}
+      {/* Active marker: a jade spine on the rail edge, not a filled pill. */}
+      <span
+        aria-hidden
+        className={`absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-jade transition-opacity ${
+          active ? "opacity-100" : "opacity-0"
+        }`}
+      />
+      <Icon
+        className={`h-[18px] w-[18px] shrink-0 ${active ? "text-jade" : "text-chrome-muted"}`}
+      />
+      <span className="hidden flex-1 truncate md:block">{label}</span>
+      {count > 0 && (
+        <span className="hidden text-[13px] tabular-nums text-chrome-muted md:block">
+          {count}
+        </span>
+      )}
     </button>
   );
 }

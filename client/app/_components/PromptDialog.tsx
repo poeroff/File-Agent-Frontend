@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 export function PromptDialog({
   title,
   label,
   initialValue = "",
-  confirmLabel = "Create",
+  confirmLabel = "만들기",
   onConfirm,
   onClose,
 }: {
@@ -40,41 +41,59 @@ export function PromptDialog({
     onClose();
   }
 
-  return (
+  // Rendered into <body> so an ancestor transform can never become this
+  // dialog's containing block (see ConfirmDialog).
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      className="anim-fade-in fixed inset-0 z-50 flex items-center justify-center bg-scrim p-4 backdrop-blur-[2px]"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
+      onClick={(event) => event.stopPropagation()}
     >
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-xl bg-white p-5 shadow-2xl dark:bg-zinc-900"
+        className="anim-pop-in w-full max-w-sm overflow-hidden rounded-2xl border border-line bg-card-raised shadow-pop"
       >
-        <h2 className="mb-3 text-base font-medium">{title}</h2>
-        <label className="mb-1 block text-xs text-zinc-500">{label}</label>
-        <input
-          ref={inputRef}
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800"
-        />
-        <div className="mt-4 flex justify-end gap-2">
+        <div className="p-5">
+          <h2 className="text-[15px] font-semibold tracking-tight">{title}</h2>
+          <label
+            htmlFor="prompt-dialog-input"
+            className="mt-4 block text-[13px] font-medium text-muted"
+          >
+            {label}
+          </label>
+          <input
+            id="prompt-dialog-input"
+            ref={inputRef}
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            className="mt-1.5 w-full rounded-lg border border-line bg-canvas px-3 py-2.5 text-sm outline-none transition focus:border-jade/60 focus:ring-2 focus:ring-jade/25"
+          />
+        </div>
+        <div className="flex justify-end gap-2 border-t border-line bg-canvas/60 px-4 py-3">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            className="rounded-lg px-3 py-2 text-sm font-medium text-muted transition hover:bg-canvas-sunken hover:text-ink"
           >
-            Cancel
+            취소
           </button>
           <button
             type="submit"
-            className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+            disabled={!value.trim()}
+            className="rounded-lg bg-jade px-3.5 py-2 text-sm font-semibold text-white shadow-[inset_0_1px_0_#ffffff2e] transition hover:bg-jade-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jade disabled:cursor-not-allowed disabled:opacity-45"
           >
             {confirmLabel}
           </button>
         </div>
       </form>
-    </div>
+    </div>,
+    document.body,
   );
 }

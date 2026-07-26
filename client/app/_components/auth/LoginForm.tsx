@@ -4,8 +4,8 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Info, WifiOff } from "lucide-react";
-import { BrandMark, Wordmark } from "@/app/_components/Brand";
-import { FileTile } from "@/app/_components/FileIcon";
+import { BrandMark, Wordmark } from "@/app/_components/shell/Brand";
+import { FileTile } from "@/app/_components/ui/FileIcon";
 
 const ERROR_MESSAGES: Record<string, string> = {
   // In this app, NextAuth collapses most sign-in failures (Google or our own
@@ -62,7 +62,7 @@ function ShowcasePanel() {
     <div className="relative hidden overflow-hidden bg-chrome p-12 text-chrome-text lg:flex lg:flex-col">
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-jade/[0.06] via-transparent to-transparent"
+        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-accent/[0.06] via-transparent to-transparent"
       />
 
       <div className="relative flex items-center gap-2.5">
@@ -74,7 +74,7 @@ function ShowcasePanel() {
         <h1 className="break-keep text-[30px] font-semibold leading-[1.3] tracking-tight">
           올려둔 파일이
           <br />
-          <span className="text-jade-text">항상 제자리에</span> 있도록.
+          <span className="text-accent-bright">항상 제자리에</span> 있도록.
         </h1>
         <p className="mt-3.5 break-keep text-[15px] leading-relaxed text-chrome-muted">
           끌어다 놓아 업로드하고, 폴더로 정리하고, 이름으로 바로 찾으세요. 지운
@@ -95,15 +95,15 @@ function ShowcasePanel() {
 
       <ul className="relative flex flex-wrap gap-x-6 gap-y-2 text-[13px] text-chrome-muted">
         <li className="flex items-center gap-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-jade" />
+          <span className="h-1.5 w-1.5 rounded-full bg-accent" />
           끌어다 놓기 업로드
         </li>
         <li className="flex items-center gap-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-jade" />
+          <span className="h-1.5 w-1.5 rounded-full bg-accent" />
           폴더 통째로 업로드
         </li>
         <li className="flex items-center gap-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-jade" />
+          <span className="h-1.5 w-1.5 rounded-full bg-accent" />
           휴지통에서 복원
         </li>
       </ul>
@@ -167,7 +167,7 @@ export function LoginForm() {
           <button
             type="button"
             onClick={handleGoogleLogin}
-            className="flex h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-line-strong bg-card text-sm font-medium transition hover:bg-canvas focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jade"
+            className="flex h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-line-strong bg-card text-sm font-medium transition hover:bg-canvas focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             <GoogleIcon />
             Google 계정으로 계속하기

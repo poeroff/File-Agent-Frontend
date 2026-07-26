@@ -50,8 +50,9 @@ export function StorageMeter({ items }: { items: DriveItem[] }) {
           {slices.map(({ category, bytes }) => (
             <div
               key={category}
-              className={`h-full ${CATEGORY_STYLES[category].bar}`}
+              className="h-full"
               style={{
+                backgroundColor: CATEGORY_STYLES[category].color,
                 width: `${(bytes / STORAGE_QUOTA_BYTES) * 100}%`,
                 minWidth: bytes > 0 ? "3px" : undefined,
               }}
@@ -86,7 +87,8 @@ export function StorageMeter({ items }: { items: DriveItem[] }) {
               className="flex items-center gap-2 text-xs text-chrome-muted"
             >
               <span
-                className={`h-2 w-2 shrink-0 rounded-full ${CATEGORY_STYLES[category].bar}`}
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{ backgroundColor: CATEGORY_STYLES[category].color }}
               />
               <span className="flex-1 truncate">{CATEGORY_STYLES[category].label}</span>
               <span className="tabular-nums text-chrome-text/85">

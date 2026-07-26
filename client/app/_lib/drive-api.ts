@@ -84,6 +84,37 @@ function partSizeFor(size: number): number {
   return Math.min(scaled, MAX_PART_SIZE);
 }
 
+/** Retries `attempt`, a whole request, with the shared backoff. */
+async function withRetry<T>(attempt: () => Promise<T>): Promise<T> {
+  for (let n = 1; ; n += 1) {
+    try {
+      return await attempt();
+    } catch (error) {
+      if (n >= PART_ATTEMPTS) throw error;
+      await sleep(retryDelay(n));
+    }
+  }
+}
+
+async function postDrive(path: string, body: unknown): Promise<unknown> {
+  const res = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Upload failed (status ${res.status})`);
+  return res.json();
+}
+
+/**
+ * Uploads a small file in one PUT.
+ *
+ * The three steps are separate on purpose: the server reserves the file's spot
+ * (and returns the blob to write to) *once*, so retrying a failed transfer
+ * re-sends the bytes instead of reserving a second spot under a "name (1)".
+ * The final call is what tells the server the bytes arrived — it never sees
+ * them, since they go straight to S3.
+ */
 async function singlePutUpload(
   path: string,
   name: string,
@@ -91,30 +122,65 @@ async function singlePutUpload(
   onProgress?: UploadProgress,
 ): Promise<void> {
   const contentType = file.type || "application/octet-stream";
-  const attempts = PART_ATTEMPTS;
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    try {
-      const res = await fetch("/api/drive/upload-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path, name }),
-      });
-      if (!res.ok) throw new Error(`Upload failed (status ${res.status})`);
-      const { url } = (await res.json()) as { url: string };
+  const { url, key } = (await withRetry(() =>
+    postDrive("/api/drive/upload-url", { path, name, contentType }),
+  )) as { url: string; key: string };
 
+  try {
+    await withRetry(async () => {
       const put = await fetch(url, {
         method: "PUT",
         body: file,
         headers: { "Content-Type": contentType },
       });
       if (!put.ok) throw new Error(`Upload failed (status ${put.status})`);
-      onProgress?.(100);
-      return;
-    } catch (error) {
-      if (attempt === attempts) throw error;
-      await sleep(retryDelay(attempt));
-    }
+    });
+  } catch (error) {
+    // Release the reserved name and blob so a failed upload leaves nothing.
+    void postDrive("/api/drive/upload/abort", { key }).catch(() => {});
+    throw error;
   }
+
+  await withRetry(() => postDrive("/api/drive/upload/complete", { key }));
+  onProgress?.(100);
+}
+
+/** Renames a file or folder. Folders keep their contents. */
+export function renameApi(path: string, name: string): Promise<void> {
+  return postJson("/api/drive/rename", { path, name });
+}
+
+/** Moves items into `destination` ("" is the drive root). */
+export function moveApi(paths: string[], destination: string): Promise<void> {
+  return postJson("/api/drive/move", { paths, destination });
+}
+
+/** One picked Drive item's outcome, so a partial import can be reported. */
+export interface ImportResult {
+  name: string;
+  path?: string;
+  bytes?: number;
+  skipped?: string;
+  error?: string;
+}
+
+/**
+ * Copies picked Google Drive files into the drive. The server does the
+ * transfer, so it keeps going at full speed and doesn't depend on the browser
+ * relaying every byte.
+ */
+export async function importFromGoogleDriveApi(
+  accessToken: string,
+  fileIds: string[],
+  path: string,
+): Promise<{ imported: number; results: ImportResult[] }> {
+  const res = await fetch("/api/drive/import/gdrive", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accessToken, fileIds, path }),
+  });
+  if (!res.ok) throw new Error(`Import failed (status ${res.status})`);
+  return res.json();
 }
 
 /**

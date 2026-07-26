@@ -1,132 +1,63 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
-   File Agent Drive — "console & canvas"
+   File Agent Drive — "기록실 (the records room)"
 
-   Two families of surface. The *chrome* (top bar, rail, trays) is the
-   instrument panel around the work; the *canvas* holds the files. Both follow
-   the OS theme: paper-light by default, deep charcoal in dark mode. The chrome
-   always sits a half-step apart from the canvas so the panel still reads as a
-   panel.
+   The app is a records office rendered entirely in paper: the *chrome* (top
+   bar, rail, trays) is a brighter sheet framing the canvas the files sit on,
+   so the whole surface stays light and calm. Files wear printed extension
+   labels; folders are manila; the accent is fountain-pen cobalt. Identity
+   comes from that labelling system, not from decoration.
 
-   `--chrome-hover` / `--chrome-fill` are the translucent overlays used on
-   chrome (hover states, input fills, progress tracks). They are tokens rather
-   than literal white/black so a chrome surface works in either theme.
+   Two families of surface, as before:
+   - chrome-*  — the panel around the work (a half-step brighter than canvas)
+   - canvas/card — the paper the files sit on
 
-   Semantic tokens below are mapped into Tailwind, so components use
-   `bg-card`, `text-muted`, `border-line` instead of scattered zinc/dark pairs.
+   `--chrome-hover` / `--chrome-fill` are translucent ink overlays used on
+   chrome (hover states, input fills, progress tracks).
+
+   `--accent-bright` / `--kraft-bright` were the on-dark variants of the two
+   accents; with an all-light chrome they simply alias the on-paper text
+   colours so components can keep using one name everywhere.
 --------------------------------------------------------------------------- */
 
 :root {
-  /* Canvas — light mode */
-  --canvas: #e9edeb;
-  --canvas-sunken: #dfe5e3;
-  --card: #ffffff;
+  /* Canvas — cool paper, deliberately not cream */
+  --canvas: #efeee9;
+  --canvas-sunken: #e5e4dc;
+  --card: #fbfaf6;
   --card-raised: #ffffff;
-  --line: #e0e5e4;
-  --line-strong: #c8d1cf;
-  --text: #0f1614;
-  --text-muted: #4d5854;
-  --text-faint: #6b7672;
-  --scrim: #16211e59;
+  --line: #dcdad0;
+  --line-strong: #c2c0b2;
+  --text: #1d2830;
+  --text-muted: #4e5a60;
+  --text-faint: #717c80;
+  --scrim: #14202b66;
 
   /* Accents */
-  --jade: #12a594;
-  --jade-strong: #0d8b7c;
-  --jade-text: #0b7a6d;
-  --jade-soft: #12a5941f;
-  --kraft: #d1902a;
-  --kraft-text: #a8721f;
-  --kraft-soft: #d1902a24;
+  --accent: #3452c0; /* fountain-pen cobalt */
+  --accent-strong: #2a43a4;
+  --accent-text: #2c46ae;
+  --accent-soft: #3452c01a;
+  --accent-bright: var(--accent-text);
+  --kraft: #c2941f; /* manila folders, stars */
+  --kraft-text: #8f6c12;
+  --kraft-soft: #c2941f26;
+  --kraft-bright: var(--kraft-text);
   --danger: #d9484d;
   --danger-text: #c2373c;
   --danger-soft: #d9484d1f;
 
-  /* Chrome — light mode: a clean white panel against the paper canvas */
-  --chrome: #ffffff;
-  --chrome-raised: #eceff0;
-  --chrome-line: #dfe4e3;
-  --chrome-text: #0f1614;
-  --chrome-muted: #566360;
-  --chrome-hover: #16211e0f;
-  --chrome-fill: #16211e14;
+  /* Chrome — a brighter sheet of the same paper as the canvas */
+  --chrome: #fbfaf6;
+  --chrome-raised: #efeee7;
+  --chrome-line: #e0ded4;
+  --chrome-text: #1d2830;
+  --chrome-muted: #59656b;
+  --chrome-hover: #14202b0d;
+  --chrome-fill: #14202b14;
 
   color-scheme: light;
-}
-
-/* Dark palette. Applied two ways:
-   - by OS preference, UNLESS the user has explicitly forced light;
-   - by explicit choice via data-theme="dark" (the in-app toggle).
-   The two selectors share the same declarations. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    /* Canvas sits a step above the rail so the chrome still reads as chrome. */
-    --canvas: #101418;
-    --canvas-sunken: #0a0d10;
-    --card: #171c22;
-    --card-raised: #1d2329;
-    --line: #262d34;
-    --line-strong: #384249;
-    --text: #e7ebea;
-    --text-muted: #a7b1af;
-    --text-faint: #838d8b;
-    --scrim: #05070999;
-
-    --chrome: #0b0e11;
-    --chrome-raised: #14191e;
-    --chrome-line: #1e252b;
-    --chrome-text: #e8edec;
-    --chrome-muted: #8b9694;
-    --chrome-hover: #ffffff0f;
-    --chrome-fill: #ffffff1a;
-
-    --jade: #14b3a0;
-    --jade-strong: #2ac9b5;
-    --jade-text: #35d0bb;
-    --jade-soft: #14b3a029;
-    --kraft: #d99a2b;
-    --kraft-text: #e5ae4d;
-    --kraft-soft: #d99a2b26;
-    --danger: #e5484d;
-    --danger-text: #ff6369;
-    --danger-soft: #e5484d29;
-
-    color-scheme: dark;
-  }
-}
-
-:root[data-theme="dark"] {
-  --canvas: #101418;
-  --canvas-sunken: #0a0d10;
-  --card: #171c22;
-  --card-raised: #1d2329;
-  --line: #262d34;
-  --line-strong: #384249;
-  --text: #e7ebea;
-  --text-muted: #a7b1af;
-  --text-faint: #838d8b;
-  --scrim: #05070999;
-
-  --chrome: #0b0e11;
-  --chrome-raised: #14191e;
-  --chrome-line: #1e252b;
-  --chrome-text: #e8edec;
-  --chrome-muted: #8b9694;
-  --chrome-hover: #ffffff0f;
-  --chrome-fill: #ffffff1a;
-
-  --jade: #14b3a0;
-  --jade-strong: #2ac9b5;
-  --jade-text: #35d0bb;
-  --jade-soft: #14b3a029;
-  --kraft: #d99a2b;
-  --kraft-text: #e5ae4d;
-  --kraft-soft: #d99a2b26;
-  --danger: #e5484d;
-  --danger-text: #ff6369;
-  --danger-soft: #e5484d29;
-
-  color-scheme: dark;
 }
 
 @theme inline {
@@ -142,13 +73,15 @@
   --color-faint: var(--text-faint);
   --color-scrim: var(--scrim);
 
-  --color-jade: var(--jade);
-  --color-jade-strong: var(--jade-strong);
-  --color-jade-text: var(--jade-text);
-  --color-jade-soft: var(--jade-soft);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-text: var(--accent-text);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-bright: var(--accent-bright);
   --color-kraft: var(--kraft);
   --color-kraft-text: var(--kraft-text);
   --color-kraft-soft: var(--kraft-soft);
+  --color-kraft-bright: var(--kraft-bright);
   --color-danger: var(--danger);
   --color-danger-text: var(--danger-text);
   --color-danger-soft: var(--danger-soft);
@@ -161,22 +94,23 @@
   --color-chrome-hover: var(--chrome-hover);
   --color-chrome-fill: var(--chrome-fill);
 
-  --font-sans: var(--font-geist-sans);
+  --font-sans: "Pretendard Variable", Pretendard, ui-sans-serif, system-ui,
+    "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   --font-mono: var(--font-geist-mono);
 
-  --shadow-card: 0 1px 2px #0f16140d, 0 1px 3px #0f161408;
-  --shadow-lift: 0 4px 6px -2px #0f161414, 0 12px 20px -8px #0f16141f;
-  --shadow-pop: 0 8px 12px -6px #0f16141f, 0 24px 48px -16px #0f16142e;
+  --shadow-card: 0 1px 2px #14202b0d, 0 1px 3px #14202b08;
+  --shadow-lift: 0 4px 6px -2px #14202b14, 0 12px 20px -8px #14202b1f;
+  --shadow-pop: 0 8px 12px -6px #14202b2e, 0 24px 48px -16px #14202b47;
 }
 
 body {
   background: var(--canvas);
   color: var(--text);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans);
 }
 
 ::selection {
-  background: var(--jade-soft);
+  background: var(--accent-soft);
   color: var(--text);
 }
 

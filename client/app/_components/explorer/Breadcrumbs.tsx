@@ -57,7 +57,7 @@ function Crumb({
     <button
       onClick={onClick}
       aria-current={current ? "page" : undefined}
-      className={`max-w-[13rem] shrink-0 truncate rounded-md px-1.5 py-1 transition hover:bg-canvas-sunken focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-jade ${
+      className={`max-w-[13rem] shrink-0 truncate rounded-md px-1.5 py-1 transition hover:bg-canvas-sunken focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${
         current ? "font-semibold tracking-tight text-ink" : "text-muted hover:text-ink"
       }`}
     >

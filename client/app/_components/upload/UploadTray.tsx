@@ -10,7 +10,8 @@ import {
 } from "lucide-react";
 import { formatBytes } from "@/app/_lib/format";
 import type { DriveStore } from "@/app/_lib/useDriveStore";
-import { FileTile } from "@/app/_components/FileIcon";
+import { FileTile } from "@/app/_components/ui/FileIcon";
+import { Progress } from "@/app/_components/ui/progress";
 
 export function UploadTray({ store }: { store: DriveStore }) {
   if (store.uploads.length === 0) return null;
@@ -37,11 +38,11 @@ export function UploadTray({ store }: { store: DriveStore }) {
         className="flex w-full items-center gap-2.5 px-4 py-3 text-left transition hover:bg-chrome-hover"
       >
         {uploading.length > 0 ? (
-          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-jade" />
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-accent-bright" />
         ) : failedCount > 0 ? (
           <XCircle className="h-4 w-4 shrink-0 text-danger" />
         ) : (
-          <Check className="h-4 w-4 shrink-0 text-jade" />
+          <Check className="h-4 w-4 shrink-0 text-accent-bright" />
         )}
         <span className="flex-1 truncate text-sm font-medium">{header}</span>
         <span className="text-[13px] tabular-nums text-chrome-muted">
@@ -55,12 +56,11 @@ export function UploadTray({ store }: { store: DriveStore }) {
       </button>
 
       {/* Aggregate progress: one hairline so the tray reads at a glance while collapsed. */}
-      <div className="h-0.5 bg-chrome-fill">
-        <div
-          className="h-full bg-jade transition-[width] duration-300"
-          style={{ width: `${overall}%` }}
-        />
-      </div>
+      <Progress
+        value={overall}
+        className="h-0.5 rounded-none"
+        indicatorClassName="rounded-none"
+      />
 
       {!store.uploadTrayCollapsed && (
         <ul className="max-h-72 overflow-y-auto">
@@ -87,20 +87,18 @@ export function UploadTray({ store }: { store: DriveStore }) {
                       {task.error ?? "업로드에 실패했어요"}
                     </p>
                   ) : (
-                    <div className="relative mt-1.5 h-1 overflow-hidden rounded-full bg-chrome-fill">
-                      <div
-                        className={`h-full rounded-full transition-[width] duration-300 ${
-                          isDone ? "bg-jade/70" : "bg-jade"
-                        }`}
-                        style={{ width: `${task.progress}%` }}
-                      />
+                    <Progress
+                      value={task.progress}
+                      className="mt-1.5 h-1"
+                      indicatorClassName={isDone ? "bg-accent-bright/70" : "bg-accent-bright"}
+                    >
                       {!isDone && (
                         <span
                           aria-hidden
                           className="anim-sheen absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/45 to-transparent"
                         />
                       )}
-                    </div>
+                    </Progress>
                   )}
                 </div>
                 <button

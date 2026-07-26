@@ -22,14 +22,14 @@ import { formatBytes, formatModifiedDate } from "@/app/_lib/format";
 import { extensionOf } from "@/app/_lib/file-icon";
 import type { DriveItem, SortKey } from "@/app/_lib/types";
 import type { DriveStore } from "@/app/_lib/useDriveStore";
-import { Breadcrumbs } from "@/app/_components/Breadcrumbs";
-import { FileTile } from "@/app/_components/FileIcon";
-import { ItemActions } from "@/app/_components/ItemActions";
-import { ItemMenu } from "@/app/_components/ItemMenu";
-import { PromptDialog } from "@/app/_components/PromptDialog";
+import { Breadcrumbs } from "@/app/_components/explorer/Breadcrumbs";
+import { FileTile } from "@/app/_components/ui/FileIcon";
+import { ItemActions } from "@/app/_components/explorer/ItemActions";
+import { ItemMenu } from "@/app/_components/explorer/ItemMenu";
+import { PromptDialog } from "@/app/_components/ui/PromptDialog";
 import { readDroppedEntries, toUploadList } from "@/app/_lib/upload-entries";
-import { ConfirmDialog } from "@/app/_components/ConfirmDialog";
-import { PreviewModal } from "@/app/_components/PreviewModal";
+import { ConfirmDialog } from "@/app/_components/ui/ConfirmDialog";
+import { PreviewModal } from "@/app/_components/explorer/PreviewModal";
 import { getPreviewUrl } from "@/app/_lib/drive-api";
 
 type Confirm = { title: string; message: string; onConfirm: () => void };
@@ -70,8 +70,9 @@ const ROW_COLUMNS =
  */
 const CONTENT_BLOCK = "mx-auto w-full max-w-[960px]";
 
-/** Same horizontal padding on header cells and value cells keeps them aligned. */
-const DATA_CELL = "px-2 text-right tabular-nums";
+/** Same horizontal padding on header cells and value cells keeps them aligned.
+    Data columns are set in mono — sizes and dates read like ledger entries. */
+const DATA_CELL = "px-2 text-right font-mono tabular-nums";
 
 export function FileExplorer({ store }: { store: DriveStore }) {
   const [renamingItem, setRenamingItem] = useState<DriveItem | null>(null);
@@ -219,7 +220,7 @@ export function FileExplorer({ store }: { store: DriveStore }) {
     >
       <div
         className={`flex h-14 shrink-0 items-center border-b transition-colors ${
-          selecting ? "border-jade/30 bg-jade-soft" : "border-line bg-canvas"
+          selecting ? "border-accent/30 bg-accent-soft" : "border-line bg-canvas"
         }`}
       >
         {/* Same bounded block *and* the same inner padding as a row, so the
@@ -308,7 +309,7 @@ export function FileExplorer({ store }: { store: DriveStore }) {
                     aria-pressed={store.sort.key === key}
                     className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[13px] transition ${
                       store.sort.key === key
-                        ? "bg-jade-soft font-medium text-jade-text"
+                        ? "bg-accent-soft font-medium text-accent-text"
                         : "text-muted hover:bg-canvas-sunken hover:text-ink"
                     }`}
                   >
@@ -408,10 +409,10 @@ export function FileExplorer({ store }: { store: DriveStore }) {
       </div>
 
       {isDragging && (
-        <div className="anim-fade-in pointer-events-none absolute inset-2 z-30 flex items-center justify-center rounded-2xl border-2 border-dashed border-jade bg-jade-soft backdrop-blur-[3px]">
+        <div className="anim-fade-in pointer-events-none absolute inset-2 z-30 flex items-center justify-center rounded-2xl border-2 border-dashed border-accent bg-accent-soft backdrop-blur-[3px]">
           <div className="flex flex-col items-center gap-3 rounded-2xl bg-card px-8 py-6 text-center shadow-pop">
-            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-jade-soft">
-              <CloudUpload className="h-7 w-7 text-jade-text" />
+            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-accent-soft">
+              <CloudUpload className="h-7 w-7 text-accent-text" />
             </div>
             <div>
               <p className="text-[15px] font-semibold">여기에 놓아 업로드</p>
@@ -486,9 +487,9 @@ function SortHeader({
       {SORT_LABELS[sortKey]}
       {active &&
         (store.sort.dir === "asc" ? (
-          <ArrowUp className="h-3 w-3 shrink-0 text-jade-text" />
+          <ArrowUp className="h-3 w-3 shrink-0 text-accent-text" />
         ) : (
-          <ArrowDown className="h-3 w-3 shrink-0 text-jade-text" />
+          <ArrowDown className="h-3 w-3 shrink-0 text-accent-text" />
         ))}
     </button>
   );
@@ -514,13 +515,13 @@ function CheckBox({
         event.stopPropagation();
         onToggle();
       }}
-      className={`grid h-7 w-7 place-items-center rounded-md transition hover:bg-canvas-sunken focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-jade ${className}`}
+      className={`grid h-7 w-7 place-items-center rounded-md transition hover:bg-canvas-sunken focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${className}`}
     >
       <span
         className={`grid h-[18px] w-[18px] place-items-center rounded-[5px] border transition ${
           state === "off"
             ? "border-line-strong bg-card"
-            : "border-jade bg-jade text-white"
+            : "border-accent bg-accent text-white"
         }`}
       >
         {state === "on" && <Check className="h-3 w-3" strokeWidth={3} />}
@@ -576,7 +577,7 @@ function ViewToggle({
       aria-pressed={active}
       className={`rounded-md p-1.5 transition ${
         active
-          ? "bg-jade-soft text-jade-text"
+          ? "bg-accent-soft text-accent-text"
           : "text-muted hover:bg-canvas-sunken hover:text-ink"
       }`}
     >
@@ -618,16 +619,16 @@ function GridCard({
       role="button"
       aria-pressed={selected}
       title={openable ? `${item.name} — 클릭해서 열기` : item.name}
-      className={`group relative cursor-pointer rounded-xl border bg-card text-left transition duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jade ${
+      className={`group relative cursor-pointer rounded-xl border bg-card text-left transition duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
         selected
-          ? "border-jade ring-2 ring-jade/30"
+          ? "border-accent ring-2 ring-accent/30"
           : "border-line hover:border-line-strong hover:shadow-lift"
       }`}
     >
       <div
         className={`relative grid h-16 place-items-center rounded-t-[11px] border-b transition-colors ${
           selected
-            ? "border-jade/25 bg-jade-soft"
+            ? "border-accent/25 bg-accent-soft"
             : "border-line/70 bg-ink/[0.03]"
         }`}
       >
@@ -670,7 +671,7 @@ function GridCard({
               aria-label="중요 표시됨"
             />
           )}
-          <span className="truncate tabular-nums">
+          <span className="truncate font-mono text-[11px] tabular-nums">
             {metaLabel(item)}
             <span className="text-faint">
               {" "}
@@ -708,14 +709,14 @@ function ListRow({
       tabIndex={0}
       role="row"
       aria-selected={selected}
-      className={`group relative grid ${ROW_COLUMNS} cursor-pointer items-center gap-3 border-b border-line/60 px-3 py-2 transition focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-jade sm:px-5 ${
-        selected ? "bg-jade-soft" : "hover:bg-card"
+      className={`group relative grid ${ROW_COLUMNS} cursor-pointer items-center gap-3 border-b border-line/60 px-3 py-2 transition focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent sm:px-5 ${
+        selected ? "bg-accent-soft" : "hover:bg-card"
       }`}
     >
       {selected && (
         <span
           aria-hidden
-          className="absolute left-0 top-0 h-full w-[3px] bg-jade"
+          className="absolute left-0 top-0 h-full w-[3px] bg-accent"
         />
       )}
       <CheckBox
@@ -819,7 +820,7 @@ function UploadCta({ store }: { store: DriveStore }) {
           event.stopPropagation();
           inputRef.current?.click();
         }}
-        className="mt-5 flex items-center gap-2 rounded-xl bg-jade px-4 py-2.5 text-sm font-semibold text-white shadow-[inset_0_1px_0_#ffffff33] transition hover:bg-jade-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jade active:translate-y-px"
+        className="mt-5 flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow-[inset_0_1px_0_#ffffff33] transition hover:bg-accent-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:translate-y-px"
       >
         <CloudUpload className="h-4 w-4" />
         파일 업로드

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, PanelRightClose, Sparkles } from "lucide-react";
+import { ArrowUp, PanelRightClose } from "lucide-react";
 import type { ActiveView } from "@/app/_lib/types";
 import type { DriveStore } from "@/app/_lib/useDriveStore";
 
@@ -50,12 +50,13 @@ export function AiPanel({
   return (
     <aside className="hidden w-[400px] shrink-0 flex-col border-l border-chrome-line bg-chrome text-chrome-text xl:flex 2xl:w-[440px]">
       <header className="flex h-14 shrink-0 items-center gap-2 border-b border-chrome-line px-3">
-        <span className="grid h-7 w-7 place-items-center rounded-lg bg-jade-soft">
-          <Sparkles className="h-4 w-4 text-jade-text" />
+        {/* The assistant wears the same label chip files do. */}
+        <span className="rounded-[5px] bg-accent px-1.5 py-0.5 font-mono text-[11px] font-bold tracking-[0.08em] text-white">
+          AI
         </span>
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <p className="text-sm font-semibold">AI 도우미</p>
-          <span className="shrink-0 rounded-full bg-kraft-soft px-2 py-0.5 text-[11px] font-medium text-kraft-text">
+          <p className="text-sm font-semibold">도우미</p>
+          <span className="shrink-0 rounded-full bg-kraft-soft px-2 py-0.5 text-[11px] font-medium text-kraft-bright">
             준비 중
           </span>
         </div>
@@ -79,7 +80,7 @@ export function AiPanel({
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
         <div className="rounded-xl border border-kraft/30 bg-kraft-soft p-3">
-          <p className="break-keep text-[13px] font-medium text-kraft-text">
+          <p className="break-keep text-[13px] font-medium text-kraft-bright">
             아직 서비스 준비 중이에요
           </p>
           <p className="mt-1.5 break-keep text-[13px] leading-relaxed text-chrome-muted">
@@ -118,7 +119,7 @@ export function AiPanel({
               type="button"
               disabled
               aria-label="보내기"
-              className="grid h-8 w-8 cursor-not-allowed place-items-center rounded-lg bg-jade text-white opacity-40"
+              className="grid h-8 w-8 cursor-not-allowed place-items-center rounded-lg bg-accent text-white opacity-40"
             >
               <ArrowUp className="h-4 w-4" />
             </button>

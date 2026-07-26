@@ -13,7 +13,7 @@ export function ActivityTray({ store }: { store: DriveStore }) {
       <div className="flex items-center justify-between px-4 py-2.5">
         <span className="text-[13px] font-medium text-chrome-text">작업</span>
         {running > 0 && (
-          <span className="text-xs tabular-nums text-jade-text">{running}개 진행 중</span>
+          <span className="text-xs tabular-nums text-accent-bright">{running}개 진행 중</span>
         )}
       </div>
       <ul className="max-h-72 overflow-y-auto border-t border-chrome-line/70">
@@ -24,11 +24,11 @@ export function ActivityTray({ store }: { store: DriveStore }) {
           >
             <span className="grid h-5 w-5 shrink-0 place-items-center">
               {activity.status === "done" ? (
-                <Check className="h-4 w-4 text-jade" />
+                <Check className="h-4 w-4 text-accent-bright" />
               ) : activity.status === "error" ? (
                 <XCircle className="h-4 w-4 text-danger" />
               ) : (
-                <Loader2 className="h-4 w-4 animate-spin text-jade" />
+                <Loader2 className="h-4 w-4 animate-spin text-accent-bright" />
               )}
             </span>
             <p className="min-w-0 flex-1 truncate text-sm">{activity.label}</p>

@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { useDriveStore } from "@/app/_lib/useDriveStore";
-import { AiPanel } from "@/app/_components/AiPanel";
-import { Sidebar } from "@/app/_components/Sidebar";
-import { TopBar } from "@/app/_components/TopBar";
-import { FileExplorer } from "@/app/_components/FileExplorer";
-import { UploadTray } from "@/app/_components/UploadTray";
-import { ActivityTray } from "@/app/_components/ActivityTray";
+import { AiPanel } from "@/app/_components/ai/AiPanel";
+import { Sidebar } from "@/app/_components/shell/Sidebar";
+import { TopBar } from "@/app/_components/shell/TopBar";
+import { FileExplorer } from "@/app/_components/explorer/FileExplorer";
+import { UploadTray } from "@/app/_components/upload/UploadTray";
+import { ActivityTray } from "@/app/_components/shell/ActivityTray";
 import type { DriveItem } from "@/app/_lib/types";
 
 export function DriveApp({

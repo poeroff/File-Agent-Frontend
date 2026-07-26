@@ -1,11 +1,31 @@
 "use client";
 
-import { useMemo } from "react";
-import { Clock, HardDrive, Star, Trash2, type LucideIcon } from "lucide-react";
+import { useMemo, type ComponentType } from "react";
+import { Clock, Star, Trash2 } from "lucide-react";
 import type { ActiveView } from "@/app/_lib/types";
 import type { DriveStore } from "@/app/_lib/useDriveStore";
-import { StorageMeter } from "@/app/_components/StorageMeter";
-import { UploadActions } from "@/app/_components/UploadActions";
+import { StorageMeter } from "@/app/_components/shell/StorageMeter";
+import { UploadActions } from "@/app/_components/upload/UploadActions";
+
+/** 내 드라이브 = the cabinet drawer, drawn in-house to match the records look. */
+function DrawerIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <rect x="2.75" y="3.25" width="14.5" height="13.5" rx="1.8" />
+      <path d="M2.75 10h14.5" />
+      <path d="M8.2 6.6h3.6M8.2 13.4h3.6" />
+    </svg>
+  );
+}
 
 export function Sidebar({ store }: { store: DriveStore }) {
   const counts = useMemo(() => {
@@ -34,7 +54,7 @@ export function Sidebar({ store }: { store: DriveStore }) {
 
       <nav className="flex flex-col gap-0.5">
         <NavItem
-          icon={HardDrive}
+          icon={DrawerIcon}
           label="내 드라이브"
           count={counts.drive}
           view="my-drive"
@@ -77,7 +97,7 @@ function NavItem({
   view,
   store,
 }: {
-  icon: LucideIcon;
+  icon: ComponentType<{ className?: string }>;
   label: string;
   count: number;
   view: ActiveView;
@@ -90,21 +110,21 @@ function NavItem({
       onClick={() => store.setView(view)}
       aria-current={active ? "page" : undefined}
       title={label}
-      className={`group relative flex items-center justify-center gap-3 rounded-lg py-2.5 text-left text-[15px] transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jade md:justify-start md:py-2 md:pl-3 md:pr-2.5 ${
+      className={`group relative flex items-center justify-center gap-3 rounded-lg py-2.5 text-left text-[15px] transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-bright md:justify-start md:py-2 md:pl-3 md:pr-2.5 ${
         active
-          ? "bg-jade-soft font-medium text-jade-text"
+          ? "bg-chrome-fill font-medium text-chrome-text"
           : "text-chrome-text/70 hover:bg-chrome-hover hover:text-chrome-text"
       }`}
     >
-      {/* Active marker: a jade spine on the rail edge, not a filled pill. */}
+      {/* Active marker: a cobalt spine on the rail edge, not a filled pill. */}
       <span
         aria-hidden
-        className={`absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-jade transition-opacity ${
+        className={`absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-accent-bright transition-opacity ${
           active ? "opacity-100" : "opacity-0"
         }`}
       />
       <Icon
-        className={`h-[18px] w-[18px] shrink-0 ${active ? "text-jade" : "text-chrome-muted"}`}
+        className={`h-[18px] w-[18px] shrink-0 ${active ? "text-accent-bright" : "text-chrome-muted"}`}
       />
       <span className="hidden flex-1 truncate md:block">{label}</span>
       {count > 0 && (

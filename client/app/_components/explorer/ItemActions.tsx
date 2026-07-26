@@ -58,7 +58,7 @@ function ActionButton({
       }}
       aria-label={label}
       title={title}
-      className="grid h-7 w-7 place-items-center rounded-lg text-muted transition hover:bg-canvas-sunken hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-jade"
+      className="grid h-7 w-7 place-items-center rounded-lg text-muted transition hover:bg-canvas-sunken hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
     >
       <Icon className="h-4 w-4" />
     </button>

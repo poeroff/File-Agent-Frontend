@@ -16,9 +16,11 @@ import {
   emptyTrashApi,
   getDownloadUrl,
   getPreviewUrl,
+  importFromGoogleDriveApi,
   listItems,
   listTrashApi,
   moveToTrashApi,
+  renameApi,
   restoreApi,
   uploadFileApi,
 } from "@/app/_lib/drive-api";
@@ -150,6 +152,14 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
       return serverItems.map((i) =>
         starred.has(i.id) ? { ...i, starred: true } : i,
       );
+    });
+    // An item's id is its path, so renaming, moving or deleting one retires that
+    // id. Selections holding a retired id would keep inflating the "n selected"
+    // count with rows that are no longer on screen.
+    const live = new Set(serverItems.map((i) => i.id));
+    setSelectedIds((prev) => {
+      const kept = new Set([...prev].filter((id) => live.has(id)));
+      return kept.size === prev.size ? prev : kept;
     });
   }, []);
 
@@ -293,6 +303,38 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
       }
     },
     [currentPrefix, currentSiblingNames, refresh],
+  );
+
+  /**
+   * Brings picked Google Drive files in. The server streams them, so this only
+   * waits for the outcome — and reports partial results honestly, since one
+   * unreadable file shouldn't read as "import failed".
+   */
+  const importFromGoogleDrive = useCallback(
+    async (accessToken: string, fileIds: string[]) => {
+      await runActivity(
+        `Google Drive에서 ${fileIds.length}개 가져오기`,
+        async () => {
+          try {
+            const { imported, results } = await importFromGoogleDriveApi(
+              accessToken,
+              fileIds,
+              currentPrefix,
+            );
+            const failed = results.filter((r) => r.error || r.skipped);
+            if (failed.length > 0) {
+              console.warn("Some Drive items were not imported", failed);
+              notify(`${imported}개 가져왔어요 · ${failed.length}개는 건너뜀`);
+            } else {
+              notify(`${imported}개 가져왔어요`);
+            }
+          } finally {
+            await refresh();
+          }
+        },
+      );
+    },
+    [currentPrefix, notify, refresh, runActivity],
   );
 
   const uploadFiles = useCallback(
@@ -458,14 +500,32 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
     [items, notify],
   );
 
-  const renameItem = useCallback((id: string, name: string) => {
-    // Local-only for now (not yet wired to S3). Reverts on the next refresh.
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, name: trimmed } : item)),
-    );
-  }, []);
+  // A real rename: the server changes one row, so it costs the same whether
+  // the item is a 3KB note or a 20GB video (and a folder keeps its contents).
+  // Shown immediately, then confirmed by the refresh — an item's id is its
+  // path, so the id changes too and only the server can hand out the new one.
+  const renameItem = useCallback(
+    async (id: string, name: string) => {
+      const trimmed = name.trim();
+      const item = items.find((entry) => entry.id === id);
+      if (!trimmed || !item || trimmed === item.name) return;
+      setItems((prev) =>
+        prev.map((entry) =>
+          entry.id === id ? { ...entry, name: trimmed } : entry,
+        ),
+      );
+      await runActivity(`${item.name} 이름 변경`, async () => {
+        try {
+          await renameApi(id, trimmed);
+        } finally {
+          // Also on failure: the refresh is what puts the old name back after
+          // the optimistic update above.
+          await refresh();
+        }
+      });
+    },
+    [items, refresh, runActivity],
+  );
 
   const toggleStar = useCallback((id: string) => {
     setItems((prev) =>
@@ -604,6 +664,7 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
     dismissUpload,
     downloadItem,
     copyShareLink,
+    importFromGoogleDrive,
     renameItem,
     toggleStar,
     moveToTrash,

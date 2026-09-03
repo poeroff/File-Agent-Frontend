@@ -14,18 +14,3 @@ services:
     ports:
       - "${CLIENT_PORT:-3000}:3000"
     restart: unless-stopped
-
-  # Reverse proxy that fronts the Next.js app. This is the public entrypoint —
-  # point Tailscale Funnel at NGINX_PORT (default 8090):
-  #   tailscale funnel --bg 8090
-  # Not 8080: VS Code's port forwarding squats 127.0.0.1:8080 on this machine
-  # and swallows the connection, so Funnel's proxy to it hangs with no reply.
-  nginx:
-    image: nginx:1.27-alpine
-    ports:
-      - "${NGINX_PORT:-8090}:80"
-    volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on:
-      - client
-    restart: unless-stopped

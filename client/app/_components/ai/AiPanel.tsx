@@ -1,19 +1,9 @@
 "use client";
 
 import { ArrowUp, PanelRightClose } from "lucide-react";
-import type { ActiveView } from "@/app/_lib/types";
-import type { DriveStore } from "@/app/_lib/useDriveStore";
-
-const VIEW_LABELS: Record<ActiveView, string> = {
-  "my-drive": "내 드라이브",
-  recent: "최근 항목",
-  starred: "중요",
-  trash: "휴지통",
-};
 
 /** Shown as a preview of what the assistant will be able to answer. */
 const SUGGESTIONS = [
-  "이 폴더 정리하는 방법 알려줘",
   "용량을 많이 쓰는 파일은?",
   "이름이 비슷하거나 중복 같은 파일 찾아줘",
 ];
@@ -25,28 +15,16 @@ const SUGGESTIONS = [
  * questions, the send button. The header shows a "준비 중" badge so it is clear
  * this is a placeholder rather than something that failed.
  *
+ * The assistant is meant to search the whole drive, not just the folder you
+ * happen to be viewing, so it deliberately shows no "current location" context.
+ *
  * To hook up an LLM later, the pieces to add are:
  *   1. message state (user/assistant turns) rendered in the scroll area below,
  *   2. a POST handler under app/api/… that takes the question plus whatever
- *      context you want to send, and streams text back,
+ *      context you want to send (e.g. the full item list from the store),
  *   3. enable the composer and send the draft on Enter.
- * The context line under the header already reads the store, so the current
- * view, folder and selection are available here without extra plumbing.
  */
-export function AiPanel({
-  store,
-  onClose,
-}: {
-  store: DriveStore;
-  onClose: () => void;
-}) {
-  const contextLabel = [
-    VIEW_LABELS[store.activeView],
-    store.breadcrumbs.at(-1)?.name,
-  ]
-    .filter(Boolean)
-    .join(" › ");
-
+export function AiPanel({ onClose }: { onClose: () => void }) {
   return (
     <aside className="hidden w-[400px] shrink-0 flex-col border-l border-chrome-line bg-chrome text-chrome-text xl:flex 2xl:w-[440px]">
       <header className="flex h-14 shrink-0 items-center gap-2 border-b border-chrome-line px-3">
@@ -70,21 +48,13 @@ export function AiPanel({
         </button>
       </header>
 
-      <div className="shrink-0 border-b border-chrome-line px-3 py-2">
-        <p className="truncate text-xs text-chrome-muted">
-          보고 있는 위치: <span className="text-chrome-text">{contextLabel}</span> ·{" "}
-          {store.visibleItems.length}개
-          {store.selectedIds.size > 0 && ` · ${store.selectedIds.size}개 선택`}
-        </p>
-      </div>
-
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
         <div className="rounded-xl border border-kraft/30 bg-kraft-soft p-3">
           <p className="break-keep text-[13px] font-medium text-kraft-bright">
             아직 서비스 준비 중이에요
           </p>
           <p className="mt-1.5 break-keep text-[13px] leading-relaxed text-chrome-muted">
-            준비가 끝나면 지금 보고 있는 폴더를 바탕으로 이런 걸 물어볼 수 있어요.
+            준비가 끝나면 내 드라이브 전체에서 이런 걸 물어볼 수 있어요.
           </p>
         </div>
 

@@ -181,6 +181,17 @@ body {
   }
 }
 
+/* A segment that sweeps across an empty track — used while an upload is being
+   set up (0%, no measurable progress yet) so it reads as "working", not stuck. */
+@keyframes indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
 @keyframes drift {
   0%,
   100% {
@@ -222,6 +233,10 @@ body {
 
 @utility anim-sheen {
   animation: sheen 1.6s ease-in-out infinite;
+}
+
+@utility anim-indeterminate {
+  animation: indeterminate 1.1s ease-in-out infinite;
 }
 
 @utility anim-drift {

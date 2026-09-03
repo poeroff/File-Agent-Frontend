@@ -30,6 +30,20 @@ async function fetchWithRetry(
   throw new Error("unreachable");
 }
 
+// The backend mints its own JWT with its own lifetime (7d), independent of
+// this session cookie. Without this check the cookie outlives that token: the
+// user still looks signed in while every backend call 401s. Reading the
+// token's own `exp` keeps the two in sync, with no second copy to drift.
+function backendTokenExpired(jwt: string): boolean {
+  try {
+    const payload = jwt.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const { exp } = JSON.parse(atob(payload)) as { exp?: number };
+    return typeof exp !== "number" || exp * 1000 <= Date.now();
+  } catch {
+    return true; // an unreadable token is as dead as an expired one
+  }
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
     Google({
@@ -94,6 +108,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           throw error instanceof Error ? error : new Error("Failed to reach backend");
         }
       }
+      // Returning null invalidates the session, so the next request is sent to
+      // /login and signs in again — the only way to get a fresh backend token,
+      // since the block above only runs on a real sign-in.
+      const backendToken = token.backendAccessToken as string | undefined;
+      if (!backendToken || backendTokenExpired(backendToken)) return null;
       return token;
     },
     async session({ session, token }) {

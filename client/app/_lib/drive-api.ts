@@ -3,15 +3,22 @@ import type { DriveItem } from "@/app/_lib/types";
 // Client-side calls to our own same-origin /api/drive/* route handlers, which
 // attach the backend token server-side. The browser never sees the token.
 
-async function postJson(path: string, body?: unknown): Promise<void> {
+/** The one JSON-POST helper: throws on non-2xx, returns the parsed body. */
+async function postDrive(
+  path: string,
+  body?: unknown,
+  signal?: AbortSignal,
+): Promise<unknown> {
   const res = await fetch(path, {
     method: "POST",
     headers:
       body === undefined ? undefined : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
   });
   if (!res.ok)
     throw new Error(`Request to ${path} failed (status ${res.status})`);
+  return res.json().catch(() => undefined);
 }
 
 export async function listItems(): Promise<DriveItem[]> {
@@ -20,8 +27,11 @@ export async function listItems(): Promise<DriveItem[]> {
   return res.json();
 }
 
-export function createFolderApi(path: string, name: string): Promise<void> {
-  return postJson("/api/drive/folder", { path, name });
+export async function createFolderApi(
+  path: string,
+  name: string,
+): Promise<void> {
+  await postDrive("/api/drive/folder", { path, name });
 }
 
 // Files larger than one part are uploaded in chunks (S3 multipart): each part
@@ -69,11 +79,12 @@ export async function uploadFileApi(
   name: string,
   file: File,
   onProgress?: UploadProgress,
+  signal?: AbortSignal,
 ): Promise<void> {
   if (file.size > BASE_PART_SIZE) {
-    return multipartUpload(path, name, file, onProgress);
+    return multipartUpload(path, name, file, onProgress, signal);
   }
-  return singlePutUpload(path, name, file, onProgress);
+  return singlePutUpload(path, name, file, onProgress, signal);
 }
 
 /** Part size for a file: 10MB until that would need more than ~1000 parts. */
@@ -84,26 +95,70 @@ function partSizeFor(size: number): number {
   return Math.min(scaled, MAX_PART_SIZE);
 }
 
+/** A user-initiated cancellation (aborted fetch), not a failure to retry. */
+export function isAbortError(error: unknown): boolean {
+  return (error as { name?: string } | null)?.name === "AbortError";
+}
+
 /** Retries `attempt`, a whole request, with the shared backoff. */
 async function withRetry<T>(attempt: () => Promise<T>): Promise<T> {
   for (let n = 1; ; n += 1) {
     try {
       return await attempt();
     } catch (error) {
-      if (n >= PART_ATTEMPTS) throw error;
+      // A cancelled upload must stop at once, not retry for another ~25s.
+      if (isAbortError(error) || n >= PART_ATTEMPTS) throw error;
       await sleep(retryDelay(n));
     }
   }
 }
 
-async function postDrive(path: string, body: unknown): Promise<unknown> {
-  const res = await fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+/**
+ * A PUT via XMLHttpRequest instead of fetch, because only XHR reports upload
+ * progress *during* a request (`upload.onprogress`) — fetch can't, so a large
+ * chunk would otherwise sit at 0% until it finished. Resolves with the HTTP
+ * status and a header reader; rejects with an AbortError when `signal` fires so
+ * the retry logic treats a cancellation as a cancel, not a failure to retry.
+ */
+function xhrPut(
+  url: string,
+  body: Blob,
+  opts: {
+    signal?: AbortSignal;
+    contentType?: string;
+    onProgress?: (loaded: number) => void;
+  } = {},
+): Promise<{ status: number; header: (name: string) => string | null }> {
+  return new Promise((resolve, reject) => {
+    if (opts.signal?.aborted) {
+      reject(new DOMException("Aborted", "AbortError"));
+      return;
+    }
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    if (opts.contentType) xhr.setRequestHeader("Content-Type", opts.contentType);
+
+    const onAbort = () => xhr.abort();
+    opts.signal?.addEventListener("abort", onAbort, { once: true });
+    const cleanup = () => opts.signal?.removeEventListener("abort", onAbort);
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) opts.onProgress?.(event.loaded);
+    };
+    xhr.onload = () => {
+      cleanup();
+      resolve({ status: xhr.status, header: (n) => xhr.getResponseHeader(n) });
+    };
+    xhr.onerror = () => {
+      cleanup();
+      reject(new Error("Network error during upload"));
+    };
+    xhr.onabort = () => {
+      cleanup();
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    xhr.send(body);
   });
-  if (!res.ok) throw new Error(`Upload failed (status ${res.status})`);
-  return res.json();
 }
 
 /**
@@ -120,39 +175,43 @@ async function singlePutUpload(
   name: string,
   file: File,
   onProgress?: UploadProgress,
+  signal?: AbortSignal,
 ): Promise<void> {
   const contentType = file.type || "application/octet-stream";
   const { url, key } = (await withRetry(() =>
-    postDrive("/api/drive/upload-url", { path, name, contentType }),
+    postDrive("/api/drive/upload-url", { path, name, contentType }, signal),
   )) as { url: string; key: string };
 
   try {
     await withRetry(async () => {
-      const put = await fetch(url, {
-        method: "PUT",
-        body: file,
-        headers: { "Content-Type": contentType },
+      const res = await xhrPut(url, file, {
+        signal,
+        contentType,
+        onProgress: (loaded) =>
+          onProgress?.(
+            file.size > 0 ? Math.round((loaded / file.size) * 100) : 100,
+          ),
       });
-      if (!put.ok) throw new Error(`Upload failed (status ${put.status})`);
+      if (res.status < 200 || res.status >= 300) {
+        throw new Error(`Upload failed (status ${res.status})`);
+      }
     });
   } catch (error) {
-    // Release the reserved name and blob so a failed upload leaves nothing.
+    // Release the reserved name and blob so a failed or cancelled upload leaves
+    // nothing behind (no signal here, so the cleanup runs even after an abort).
     void postDrive("/api/drive/upload/abort", { key }).catch(() => {});
     throw error;
   }
 
-  await withRetry(() => postDrive("/api/drive/upload/complete", { key }));
+  await withRetry(() =>
+    postDrive("/api/drive/upload/complete", { key }, signal),
+  );
   onProgress?.(100);
 }
 
 /** Renames a file or folder. Folders keep their contents. */
-export function renameApi(path: string, name: string): Promise<void> {
-  return postJson("/api/drive/rename", { path, name });
-}
-
-/** Moves items into `destination` ("" is the drive root). */
-export function moveApi(paths: string[], destination: string): Promise<void> {
-  return postJson("/api/drive/move", { paths, destination });
+export async function renameApi(path: string, name: string): Promise<void> {
+  await postDrive("/api/drive/rename", { path, name });
 }
 
 /** One picked Drive item's outcome, so a partial import can be reported. */
@@ -174,13 +233,11 @@ export async function importFromGoogleDriveApi(
   fileIds: string[],
   path: string,
 ): Promise<{ imported: number; results: ImportResult[] }> {
-  const res = await fetch("/api/drive/import/gdrive", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ accessToken, fileIds, path }),
-  });
-  if (!res.ok) throw new Error(`Import failed (status ${res.status})`);
-  return res.json();
+  return (await postDrive("/api/drive/import/gdrive", {
+    accessToken,
+    fileIds,
+    path,
+  })) as { imported: number; results: ImportResult[] };
 }
 
 /**
@@ -191,7 +248,12 @@ export async function importFromGoogleDriveApi(
  * connection hits `403 Request has expired` partway through and can't finish.
  * Windows keep each URL young, and `refresh` re-signs one when it does expire.
  */
-function createPartUrls(key: string, uploadId: string, partCount: number) {
+function createPartUrls(
+  key: string,
+  uploadId: string,
+  partCount: number,
+  signal?: AbortSignal,
+) {
   const urls = new Map<number, string>();
   const inFlight = new Map<number, Promise<void>>();
   const windowStart = (part: number) =>
@@ -199,13 +261,11 @@ function createPartUrls(key: string, uploadId: string, partCount: number) {
 
   async function signWindow(firstPart: number): Promise<void> {
     const parts = Math.min(PRESIGN_WINDOW, partCount - firstPart + 1);
-    const res = await fetch("/api/drive/multipart/urls", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key, uploadId, parts, firstPart }),
-    });
-    if (!res.ok) throw new Error(`Upload failed (status ${res.status})`);
-    const { urls: signed } = (await res.json()) as { urls: string[] };
+    const { urls: signed } = (await postDrive(
+      "/api/drive/multipart/urls",
+      { key, uploadId, parts, firstPart },
+      signal,
+    )) as { urls: string[] };
     signed.forEach((url, index) => urls.set(firstPart + index, url));
   }
 
@@ -241,35 +301,32 @@ function createPartUrls(key: string, uploadId: string, partCount: number) {
 
 type PartUrls = ReturnType<typeof createPartUrls>;
 
-async function putPart(
+function putPart(
   partUrls: PartUrls,
   partNumber: number,
   blob: Blob,
+  signal?: AbortSignal,
+  onProgress?: (loaded: number) => void,
 ): Promise<string> {
-  const attempts = PART_ATTEMPTS;
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    try {
-      // Inside the retry on purpose: signing can fail on a flaky network too,
-      // and a failed part is worth re-signing rather than abandoning.
-      const url = await partUrls.get(partNumber);
-      const res = await fetch(url, { method: "PUT", body: blob });
-      if (res.status === 403) {
-        // On a long upload this is virtually always an expired signature, and
-        // it's recoverable: re-sign the window and retry instead of failing
-        // the whole file after hours of transfer.
-        await partUrls.refresh(partNumber);
-        throw new Error("Part URL expired");
-      }
-      if (!res.ok) throw new Error(`Part upload failed (status ${res.status})`);
-      const etag = res.headers.get("ETag") ?? res.headers.get("etag");
-      if (!etag) throw new Error("Missing ETag on part response");
-      return etag;
-    } catch (error) {
-      if (attempt === attempts) throw error;
-      await sleep(retryDelay(attempt));
+  return withRetry(async () => {
+    // Inside the retry on purpose: signing can fail on a flaky network too,
+    // and a failed part is worth re-signing rather than abandoning.
+    const url = await partUrls.get(partNumber);
+    const res = await xhrPut(url, blob, { signal, onProgress });
+    if (res.status === 403) {
+      // On a long upload this is virtually always an expired signature, and
+      // it's recoverable: re-sign the window and retry instead of failing
+      // the whole file after hours of transfer.
+      await partUrls.refresh(partNumber);
+      throw new Error("Part URL expired");
     }
-  }
-  throw new Error("unreachable");
+    if (res.status < 200 || res.status >= 300) {
+      throw new Error(`Part upload failed (status ${res.status})`);
+    }
+    const etag = res.header("ETag") ?? res.header("etag");
+    if (!etag) throw new Error("Missing ETag on part response");
+    return etag;
+  });
 }
 
 async function multipartUpload(
@@ -277,6 +334,7 @@ async function multipartUpload(
   name: string,
   file: File,
   onProgress?: UploadProgress,
+  signal?: AbortSignal,
 ): Promise<void> {
   const partSize = partSizeFor(file.size);
   const partCount = Math.ceil(file.size / partSize);
@@ -285,59 +343,65 @@ async function multipartUpload(
     throw new Error("File exceeds the maximum upload size");
   }
 
-  const created = await fetch("/api/drive/multipart/create", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    // Multipart can only set the type here — the parts can't — so without this
-    // the finished object is stored as binary/octet-stream and the browser
-    // won't preview large PDFs, images or videos inline.
-    body: JSON.stringify({
-      path,
-      name,
-      contentType: file.type || "application/octet-stream",
-    }),
-  });
-  if (!created.ok) throw new Error(`Upload failed (status ${created.status})`);
-  const { uploadId, key } = (await created.json()) as {
-    uploadId: string;
-    key: string;
-  };
+  // Multipart can only set the type here — the parts can't — so without this
+  // the finished object is stored as binary/octet-stream and the browser
+  // won't preview large PDFs, images or videos inline.
+  const { uploadId, key } = (await postDrive(
+    "/api/drive/multipart/create",
+    { path, name, contentType: file.type || "application/octet-stream" },
+    signal,
+  )) as { uploadId: string; key: string };
 
   try {
-    const partUrls = createPartUrls(key, uploadId, partCount);
+    const partUrls = createPartUrls(key, uploadId, partCount, signal);
     const parts: { partNumber: number; etag: string }[] = new Array(partCount);
-    let uploadedBytes = 0;
+    // Progress = bytes of finished parts + live bytes of the parts currently
+    // in flight, so several concurrent parts add up to one smooth percentage.
+    let completedBytes = 0;
+    const inFlight = new Map<number, number>();
     let nextPart = 0;
+
+    const report = () => {
+      let live = 0;
+      for (const loaded of inFlight.values()) live += loaded;
+      onProgress?.(
+        Math.min(100, Math.round(((completedBytes + live) / file.size) * 100)),
+      );
+    };
 
     const worker = async () => {
       while (nextPart < partCount) {
         const i = nextPart++;
         const start = i * partSize;
         const end = Math.min(start + partSize, file.size);
-        const etag = await putPart(partUrls, i + 1, file.slice(start, end));
+        inFlight.set(i, 0);
+        const etag = await putPart(
+          partUrls,
+          i + 1,
+          file.slice(start, end),
+          signal,
+          (loaded) => {
+            inFlight.set(i, loaded);
+            report();
+          },
+        );
         parts[i] = { partNumber: i + 1, etag };
-        uploadedBytes += end - start;
-        onProgress?.(Math.round((uploadedBytes / file.size) * 100));
+        inFlight.delete(i);
+        completedBytes += end - start;
+        report();
       }
     };
     await Promise.all(
       Array.from({ length: Math.min(PART_CONCURRENCY, partCount) }, worker),
     );
 
-    const done = await fetch("/api/drive/multipart/complete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key, uploadId, parts }),
-    });
-    if (!done.ok) throw new Error(`Upload failed (status ${done.status})`);
+    await postDrive("/api/drive/multipart/complete", { key, uploadId, parts }, signal);
     onProgress?.(100);
   } catch (error) {
     // Free the orphaned parts so they don't linger + incur storage cost.
-    void fetch("/api/drive/multipart/abort", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key, uploadId }),
-    }).catch(() => {});
+    void postDrive("/api/drive/multipart/abort", { key, uploadId }).catch(
+      () => {},
+    );
     throw error;
   }
 }
@@ -362,18 +426,18 @@ export async function listTrashApi(): Promise<DriveItem[]> {
   return res.json();
 }
 
-export function moveToTrashApi(paths: string[]): Promise<void> {
-  return postJson("/api/drive/trash", { paths });
+export async function moveToTrashApi(paths: string[]): Promise<void> {
+  await postDrive("/api/drive/trash", { paths });
 }
 
-export function restoreApi(entryIds: string[]): Promise<void> {
-  return postJson("/api/drive/restore", { entryIds });
+export async function restoreApi(entryIds: string[]): Promise<void> {
+  await postDrive("/api/drive/restore", { entryIds });
 }
 
-export function deleteTrashApi(entryIds: string[]): Promise<void> {
-  return postJson("/api/drive/trash/delete", { entryIds });
+export async function deleteTrashApi(entryIds: string[]): Promise<void> {
+  await postDrive("/api/drive/trash/delete", { entryIds });
 }
 
-export function emptyTrashApi(): Promise<void> {
-  return postJson("/api/drive/trash/empty");
+export async function emptyTrashApi(): Promise<void> {
+  await postDrive("/api/drive/trash/empty");
 }

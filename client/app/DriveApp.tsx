@@ -33,7 +33,7 @@ export function DriveApp({
       <div className="flex min-h-0 flex-1">
         <Sidebar store={store} />
         <FileExplorer store={store} />
-        {aiOpen && <AiPanel store={store} onClose={() => setAiOpen(false)} />}
+        {aiOpen && <AiPanel onClose={() => setAiOpen(false)} />}
       </div>
       <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-3">
         <ActivityTray store={store} />

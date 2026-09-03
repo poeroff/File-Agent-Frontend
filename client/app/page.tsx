@@ -1,34 +1,25 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { DriveApp } from "@/app/DriveApp";
-import {
-  s3ObjectsToItems,
-  trashEntriesToItems,
-  type S3Object,
-  type TrashEntry,
-} from "@/app/_lib/s3-to-items";
+import { s3ObjectsToItems, type S3Object } from "@/app/_lib/s3-to-items";
 import type { DriveItem } from "@/app/_lib/types";
 
-// Fetches the user's real S3 contents (live + trashed) from the backend. Runs
-// on the server, so the backend access token stays out of the browser.
+// Fetches the user's live S3 contents from the backend. Runs on the server, so
+// the backend access token stays out of the browser. Trash is deliberately left
+// out — it's loaded lazily on the client the first time the Trash view is
+// opened, so the home screen isn't slowed down fetching data nobody's looking
+// at yet.
 async function loadItems(token: string | undefined): Promise<DriveItem[]> {
   if (!token) return [];
   const headers = { Authorization: `Bearer ${token}` };
   try {
-    const [liveRes, trashRes] = await Promise.all([
-      fetch(`${process.env.BACKEND_URL}/files`, { headers, cache: "no-store" }),
-      fetch(`${process.env.BACKEND_URL}/files/trash`, {
-        headers,
-        cache: "no-store",
-      }),
-    ]);
-    const live = liveRes.ok
-      ? s3ObjectsToItems((await liveRes.json()) as S3Object[], Date.now())
+    const res = await fetch(`${process.env.BACKEND_URL}/files`, {
+      headers,
+      cache: "no-store",
+    });
+    return res.ok
+      ? s3ObjectsToItems((await res.json()) as S3Object[], Date.now())
       : [];
-    const trash = trashRes.ok
-      ? trashEntriesToItems((await trashRes.json()) as TrashEntry[])
-      : [];
-    return [...live, ...trash];
   } catch {
     return [];
   }

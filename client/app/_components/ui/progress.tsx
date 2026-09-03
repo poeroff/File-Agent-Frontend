@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import * as ProgressPrimitive from "@radix-ui/react-progress";
 import { cn } from "@/lib/utils";
 
 // A single-value bar with a proper role="progressbar" and aria values. The
@@ -13,27 +12,31 @@ function Progress({
   value = 0,
   children,
   ...props
-}: React.ComponentProps<typeof ProgressPrimitive.Root> & {
+}: React.ComponentProps<"div"> & {
+  value?: number;
   indicatorClassName?: string;
 }) {
   return (
-    <ProgressPrimitive.Root
-      value={value}
+    <div
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={value}
       className={cn(
         "relative h-1 w-full overflow-hidden rounded-full bg-chrome-fill",
         className,
       )}
       {...props}
     >
-      <ProgressPrimitive.Indicator
+      <div
         className={cn(
           "h-full w-full flex-1 rounded-full bg-accent transition-transform duration-300",
           indicatorClassName,
         )}
-        style={{ transform: `translateX(-${100 - (value ?? 0)}%)` }}
+        style={{ transform: `translateX(-${100 - value}%)` }}
       />
       {children}
-    </ProgressPrimitive.Root>
+    </div>
   );
 }
 

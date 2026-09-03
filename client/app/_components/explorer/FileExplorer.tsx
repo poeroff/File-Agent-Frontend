@@ -19,7 +19,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { formatBytes, formatModifiedDate } from "@/app/_lib/format";
-import { extensionOf } from "@/app/_lib/file-icon";
+import { categoryOf, extensionOf } from "@/app/_lib/file-icon";
 import type { DriveItem, SortKey } from "@/app/_lib/types";
 import type { DriveStore } from "@/app/_lib/useDriveStore";
 import { Breadcrumbs } from "@/app/_components/explorer/Breadcrumbs";
@@ -27,27 +27,14 @@ import { FileTile } from "@/app/_components/ui/FileIcon";
 import { ItemActions } from "@/app/_components/explorer/ItemActions";
 import { ItemMenu } from "@/app/_components/explorer/ItemMenu";
 import { PromptDialog } from "@/app/_components/ui/PromptDialog";
-import { readDroppedEntries, toUploadList } from "@/app/_lib/upload-entries";
+import { getDroppedRoots, toUploadList } from "@/app/_lib/upload-entries";
 import { ConfirmDialog } from "@/app/_components/ui/ConfirmDialog";
 import { PreviewModal } from "@/app/_components/explorer/PreviewModal";
 import { getPreviewUrl } from "@/app/_lib/drive-api";
 
 type Confirm = { title: string; message: string; onConfirm: () => void };
 
-const IMAGE_EXTENSIONS = new Set([
-  "png",
-  "jpg",
-  "jpeg",
-  "gif",
-  "webp",
-  "svg",
-  "bmp",
-  "avif",
-]);
-
-function isImage(name: string): boolean {
-  return IMAGE_EXTENSIONS.has(extensionOf(name));
-}
+const isImage = (name: string) => categoryOf(name) === "image";
 
 const SORT_LABELS: Record<SortKey, string> = {
   name: "이름",
@@ -158,13 +145,15 @@ export function FileExplorer({ store }: { store: DriveStore }) {
     if (dragCounter.current === 0) setIsDragging(false);
   }
 
-  async function handleDrop(event: React.DragEvent) {
+  function handleDrop(event: React.DragEvent) {
     event.preventDefault();
     dragCounter.current = 0;
     setIsDragging(false);
-    // Resolve dropped files AND folders (recursing into directory contents).
-    const uploads = await readDroppedEntries(event.dataTransfer);
-    if (uploads.length) store.uploadFiles(uploads);
+    // Grab the entry handles synchronously (the DataTransfer is cleared the
+    // moment we await). The store then shows a "reading" indicator while it
+    // walks the tree, so a dropped folder doesn't look ignored.
+    const roots = getDroppedRoots(event.dataTransfer);
+    if (roots.length) void store.uploadDropped(roots);
   }
 
   function handleItemClick(item: DriveItem, event: React.MouseEvent) {

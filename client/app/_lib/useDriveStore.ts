@@ -24,13 +24,12 @@ import {
   restoreApi,
   uploadFileApi,
 } from "@/app/_lib/drive-api";
-import type { UploadInput } from "@/app/_lib/upload-entries";
+import { readEntries, type UploadInput } from "@/app/_lib/upload-entries";
 
-let idCounter = 0;
-function makeId(prefix: string): string {
-  idCounter += 1;
-  return `${prefix}-${Date.now()}-${idCounter}`;
-}
+// Not crypto.randomUUID: that needs a secure context, and this app may be
+// served over plain http on a LAN/VPN address.
+const makeId = (prefix: string) =>
+  `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 // Maps a thrown upload error to a short reason the user can act on.
 function uploadErrorMessage(error: unknown): string {
@@ -88,7 +87,9 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
   // Anchor for shift-click range selection: the row a range extends from.
   const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
   const [uploads, setUploads] = useState<UploadTask[]>([]);
-  const [uploadTrayCollapsed, setUploadTrayCollapsed] = useState(false);
+  // Start collapsed: the tray shows just the overall progress, and the user
+  // expands it ("자세히 보기") to see the per-file breakdown.
+  const [uploadTrayCollapsed, setUploadTrayCollapsed] = useState(true);
   const [activities, setActivities] = useState<Activity[]>([]);
 
   // Shows a labelled task in the bottom-right tray while `fn` runs (spinner),
@@ -135,6 +136,15 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
     currentFolderIdRef.current = currentFolderId;
   }, [currentFolderId]);
 
+  // Trash is fetched lazily — only once the user opens the Trash view — so the
+  // home screen's first load doesn't pull data they won't look at yet. This
+  // flag flips true after that first fetch, and keeps later refreshes in sync.
+  const trashLoadedRef = useRef(false);
+
+  // One AbortController per upload batch, so "전체 취소" can abort every
+  // in-flight transfer at once regardless of which batch it belongs to.
+  const uploadControllersRef = useRef<Set<AbortController>>(new Set());
+
   // S3 prefix of the folder we're currently viewing. A folder's id is its
   // relative key path (e.g. "Photos/trip"), so the prefix is that + "/".
   const currentPrefix = useMemo(
@@ -165,7 +175,14 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
 
   const refresh = useCallback(async () => {
     try {
-      const [live, trash] = await Promise.all([listItems(), listTrashApi()]);
+      // Trash is lazy (loaded on the first Trash-view open), so a routine
+      // refresh only re-fetches it once it's already in play.
+      const [live, trash] = await Promise.all([
+        listItems(),
+        trashLoadedRef.current
+          ? listTrashApi()
+          : Promise.resolve<DriveItem[]>([]),
+      ]);
       const combined = [...live, ...trash];
       applyServerItems(combined);
       // If the folder we're viewing no longer exists as a live folder (e.g. we
@@ -184,26 +201,50 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
     }
   }, [applyServerItems, notify]);
 
+  // Loads the Trash view's contents the first time it's opened, merging them
+  // into the live items already on screen (which stay put). Later refreshes
+  // keep it current on their own once trashLoadedRef is set.
+  const loadTrash = useCallback(async () => {
+    try {
+      const trash = await listTrashApi();
+      trashLoadedRef.current = true;
+      setItems((prev) => {
+        const starred = new Set(prev.filter((i) => i.starred).map((i) => i.id));
+        const live = prev.filter((i) => !i.trashed);
+        return [...live, ...trash].map((i) =>
+          starred.has(i.id) ? { ...i, starred: true } : i,
+        );
+      });
+    } catch (error) {
+      console.error("Failed to load trash", error);
+    }
+  }, []);
+
   const navigateToFolder = useCallback((folderId: string | null) => {
     setActiveView("my-drive");
     setCurrentFolderId(folderId);
     setSelectedIds(new Set());
   }, []);
 
-  const setView = useCallback((view: ActiveView) => {
-    setActiveView(view);
-    setSelectedIds(new Set());
-    // Always reset to the root — clicking a nav item (incl. My Drive while
-    // inside a subfolder) should take you back to the top of that view.
-    setCurrentFolderId(null);
-    // Each view opens on the order that makes sense for it: "recent" is about
-    // what changed last, everything else reads alphabetically.
-    setSortState(
-      view === "recent"
-        ? { key: "modified", dir: "desc" }
-        : { key: "name", dir: "asc" },
-    );
-  }, []);
+  const setView = useCallback(
+    (view: ActiveView) => {
+      setActiveView(view);
+      setSelectedIds(new Set());
+      // Always reset to the root — clicking a nav item (incl. My Drive while
+      // inside a subfolder) should take you back to the top of that view.
+      setCurrentFolderId(null);
+      // Each view opens on the order that makes sense for it: "recent" is about
+      // what changed last, everything else reads alphabetically.
+      setSortState(
+        view === "recent"
+          ? { key: "modified", dir: "desc" }
+          : { key: "name", dir: "asc" },
+      );
+      // Fetch the trash contents the first time it's actually needed.
+      if (view === "trash" && !trashLoadedRef.current) void loadTrash();
+    },
+    [loadTrash],
+  );
 
   const breadcrumbs = useMemo(() => {
     const trail: DriveItem[] = [];
@@ -340,7 +381,9 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
   const uploadFiles = useCallback(
     async (uploads: UploadInput[]) => {
       if (uploads.length === 0) return;
-      setUploadTrayCollapsed(false);
+      // Keep the tray collapsed: it leads with the overall percentage, and the
+      // per-file breakdown is behind "자세히 보기".
+      setUploadTrayCollapsed(true);
 
       // De-duplicate top-level names against existing siblings so uploading a
       // file/folder whose name already exists lands as "name (1)" instead of
@@ -365,20 +408,32 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
         return { file, relativeDir: "", name: unique };
       });
 
-      const uploadOne = async (input: (typeof resolved)[number]) => {
-        const { file, relativeDir, name } = input;
-        const taskId = makeId("upload");
-        setUploads((prev) => [
-          ...prev,
-          {
-            id: taskId,
-            name,
-            size: file.size,
-            progress: 0,
-            status: "uploading",
-          },
-        ]);
+      // Every file gets its row up front (progress 0), so the tray's overall
+      // percentage has a stable set to average over for the whole batch.
+      // Adding rows as each file *starts* made a new 0% file drag the average
+      // down; removing each finished file made it drop again — so the number
+      // lurched instead of climbing. Now nothing is added or removed mid-batch.
+      const tasks = resolved.map((input) => ({
+        input,
+        task: {
+          id: makeId("upload"),
+          name: input.name,
+          size: input.file.size,
+          progress: 0,
+          status: "uploading" as const,
+        } satisfies UploadTask,
+      }));
+      setUploads((prev) => [...prev, ...tasks.map((t) => t.task)]);
 
+      // One controller for the whole batch: cancelUploads aborts it and every
+      // in-flight fetch (including the direct-to-S3 transfers) stops at once.
+      const controller = new AbortController();
+      const { signal } = controller;
+      uploadControllersRef.current.add(controller);
+
+      const uploadOne = async ({ input, task }: (typeof tasks)[number]) => {
+        const { file, relativeDir, name } = input;
+        const taskId = task.id;
         try {
           // relativeDir preserves any dropped/selected folder structure.
           // The progress callback drives the tray's bar (real % for large,
@@ -389,29 +444,26 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
             file,
             (percent) =>
               setUploads((prev) =>
-                prev.map((task) =>
-                  task.id === taskId ? { ...task, progress: percent } : task,
+                prev.map((t) =>
+                  t.id === taskId ? { ...t, progress: percent } : t,
                 ),
               ),
+            signal,
           );
           setUploads((prev) =>
-            prev.map((task) =>
-              task.id === taskId
-                ? { ...task, progress: 100, status: "done" }
-                : task,
+            prev.map((t) =>
+              t.id === taskId ? { ...t, progress: 100, status: "done" } : t,
             ),
           );
-          setTimeout(() => {
-            setUploads((prev) => prev.filter((task) => task.id !== taskId));
-          }, 4000);
         } catch (error) {
+          // Cancelled by the user — cancelUploads already drops the row, so
+          // don't mark it as a failure.
+          if (signal.aborted) return;
           console.error("Upload failed", error);
           const reason = uploadErrorMessage(error);
           setUploads((prev) =>
-            prev.map((task) =>
-              task.id === taskId
-                ? { ...task, status: "error", error: reason }
-                : task,
+            prev.map((t) =>
+              t.id === taskId ? { ...t, status: "error", error: reason } : t,
             ),
           );
         }
@@ -430,10 +482,11 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
       const SMALL_CONCURRENCY = 6;
       const LARGE_CONCURRENCY = 2;
 
-      const runPool = (queue: typeof resolved, size: number) =>
+      const runPool = (queue: typeof tasks, size: number) =>
         Promise.all(
           Array.from({ length: Math.min(size, queue.length) }, async () => {
-            while (queue.length > 0) {
+            // Stop pulling new files the moment the batch is cancelled.
+            while (queue.length > 0 && !signal.aborted) {
               const next = queue.shift();
               if (next) await uploadOne(next);
             }
@@ -442,16 +495,26 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
 
       await Promise.all([
         runPool(
-          resolved.filter((input) => input.file.size <= SMALL_FILE_BYTES),
+          tasks.filter((t) => t.input.file.size <= SMALL_FILE_BYTES),
           SMALL_CONCURRENCY,
         ),
         runPool(
-          resolved.filter((input) => input.file.size > SMALL_FILE_BYTES),
+          tasks.filter((t) => t.input.file.size > SMALL_FILE_BYTES),
           LARGE_CONCURRENCY,
         ),
       ]);
 
+      uploadControllersRef.current.delete(controller);
       await refresh();
+
+      // The batch has settled — clear its finished rows a moment later so the
+      // tray doesn't linger, but keep any failures visible for the user.
+      const batchIds = new Set(tasks.map((t) => t.task.id));
+      setTimeout(() => {
+        setUploads((prev) =>
+          prev.filter((t) => !batchIds.has(t.id) || t.status === "error"),
+        );
+      }, 4000);
     },
     [currentPrefix, currentSiblingNames, refresh],
   );
@@ -459,6 +522,38 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
   const dismissUpload = useCallback((taskId: string) => {
     setUploads((prev) => prev.filter((task) => task.id !== taskId));
   }, []);
+
+  // Aborts every in-flight upload at once and drops the unfinished rows.
+  // Already-finished uploads stay — their bytes are safely stored — and the
+  // per-file cleanup (backend row + S3 parts) is handled by drive-api on abort.
+  const cancelUploads = useCallback(() => {
+    for (const controller of uploadControllersRef.current) controller.abort();
+    uploadControllersRef.current.clear();
+    setUploads((prev) => prev.filter((task) => task.status !== "uploading"));
+  }, []);
+
+  // Handles a drag-and-drop. Enumerating a dropped folder tree takes a moment,
+  // and until it finishes there are no upload rows to show — which read as "the
+  // drop did nothing". So it puts a "reading" spinner in the activity tray right
+  // away, then hands the resolved files to uploadFiles.
+  const uploadDropped = useCallback(
+    async (roots: FileSystemEntry[]) => {
+      if (roots.length === 0) return;
+      const id = makeId("activity");
+      setActivities((prev) => [
+        ...prev,
+        { id, label: "파일 목록을 읽는 중…", status: "running" },
+      ]);
+      let inputs: UploadInput[];
+      try {
+        inputs = await readEntries(roots);
+      } finally {
+        setActivities((prev) => prev.filter((a) => a.id !== id));
+      }
+      if (inputs.length > 0) await uploadFiles(inputs);
+    },
+    [uploadFiles],
+  );
 
   // Fetches a presigned URL and triggers a browser download from S3 directly.
   const downloadItem = useCallback(
@@ -661,7 +756,9 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
     setSort,
     createFolder,
     uploadFiles,
+    uploadDropped,
     dismissUpload,
+    cancelUploads,
     downloadItem,
     copyShareLink,
     importFromGoogleDrive,

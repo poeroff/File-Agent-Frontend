@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
   // Tailscale Funnel hostname, so allow it explicitly — otherwise those
   // requests are blocked and the page loads without fonts or hot reload.
   // Ignored by production builds.
-  allowedDevOrigins: ["dhbp.taile13eac.ts.net"],
+  allowedDevOrigins: ["dhbp-taeyoung.taile13eac.ts.net"],
 };
 
 export default nextConfig;

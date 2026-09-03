@@ -39,16 +39,21 @@ function readAllEntries(
   });
 }
 
-// Recursively resolves dropped items (files AND folders) into upload inputs.
-// Dropping a folder walks its whole tree; dropping a file yields just the file.
-export async function readDroppedEntries(
-  dataTransfer: DataTransfer,
-): Promise<UploadInput[]> {
-  // webkitGetAsEntry() must be called synchronously, before any await.
-  const roots = Array.from(dataTransfer.items)
+// Grabs the dropped items' entry handles. MUST run synchronously inside the
+// drop event — the DataTransfer items are cleared the moment the handler yields
+// (any await), so this can't be deferred.
+export function getDroppedRoots(dataTransfer: DataTransfer): FileSystemEntry[] {
+  return Array.from(dataTransfer.items)
     .map((item) => item.webkitGetAsEntry?.() ?? null)
     .filter((entry): entry is FileSystemEntry => entry !== null);
+}
 
+// Resolves dropped roots (files AND folders) into upload inputs, walking a
+// folder's whole tree. Siblings are walked in parallel so a big tree enumerates
+// in a fraction of the time the old file-by-file sequential walk took.
+export async function readEntries(
+  roots: FileSystemEntry[],
+): Promise<UploadInput[]> {
   const results: UploadInput[] = [];
 
   async function walk(entry: FileSystemEntry, dir: string): Promise<void> {
@@ -60,10 +65,10 @@ export async function readDroppedEntries(
       const children = await readAllEntries(
         (entry as FileSystemDirectoryEntry).createReader(),
       );
-      for (const child of children) await walk(child, childDir);
+      await Promise.all(children.map((child) => walk(child, childDir)));
     }
   }
 
-  for (const root of roots) await walk(root, "");
+  await Promise.all(roots.map((root) => walk(root, "")));
   return results;
 }

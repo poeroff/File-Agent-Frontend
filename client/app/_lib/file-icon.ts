@@ -45,6 +45,7 @@ const CATEGORY_BY_EXTENSION: Record<string, FileCategory> = {
   svg: "image",
   webp: "image",
   avif: "image",
+  bmp: "image",
   heic: "image",
   mp4: "video",
   mov: "video",

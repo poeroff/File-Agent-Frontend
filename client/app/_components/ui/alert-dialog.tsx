@@ -9,7 +9,6 @@ import { buttonVariants } from "@/app/_components/ui/button";
 // focus lands on the cancel action, and it's announced as an alertdialog.
 
 const AlertDialog = AlertDialogPrimitive.Root;
-const AlertDialogTrigger = AlertDialogPrimitive.Trigger;
 
 function AlertDialogContent({
   className,
@@ -107,7 +106,6 @@ function AlertDialogCancel({
 
 export {
   AlertDialog,
-  AlertDialogTrigger,
   AlertDialogContent,
   AlertDialogTitle,
   AlertDialogDescription,

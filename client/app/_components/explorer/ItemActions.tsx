@@ -6,9 +6,10 @@ import type { DriveStore } from "@/app/_lib/useDriveStore";
 
 /**
  * Share and download, out in the open next to the row instead of buried in the
- * overflow menu — they are the two things people came to do with a file. Only
- * files get them: folders can't be presigned or downloaded as one object, and
- * trashed items must be restored first.
+ * overflow menu — they are the two things people came to do with a file.
+ * Folders download too (as a zip), but can't be shared: a share link is a
+ * presigned S3 URL, and a folder has no single object to presign. Trashed
+ * items must be restored first.
  */
 export function ItemActions({
   item,
@@ -19,20 +20,22 @@ export function ItemActions({
   store: DriveStore;
   className?: string;
 }) {
-  if (item.type !== "file" || item.trashed) return null;
+  if (item.trashed) return null;
 
   return (
     <div className={`flex items-center ${className}`}>
-      <ActionButton
-        icon={Link2}
-        label={`${item.name} 공유 링크 복사`}
-        title="공유 링크 복사 (5분간 유효)"
-        onClick={() => store.copyShareLink(item.id)}
-      />
+      {item.type === "file" && (
+        <ActionButton
+          icon={Link2}
+          label={`${item.name} 공유 링크 복사`}
+          title="공유 링크 복사 (5분간 유효)"
+          onClick={() => store.copyShareLink(item.id)}
+        />
+      )}
       <ActionButton
         icon={Download}
-        label={`${item.name} 다운로드`}
-        title="다운로드"
+        label={item.type === "folder" ? `${item.name} 폴더 다운로드` : `${item.name} 다운로드`}
+        title={item.type === "folder" ? "폴더 다운로드 (zip)" : "다운로드"}
         onClick={() => store.downloadItem(item.id)}
       />
     </div>

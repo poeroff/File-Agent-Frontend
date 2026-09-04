@@ -68,7 +68,7 @@ export function StorageMeter({ items }: { items: DriveItem[] }) {
     <div className="rounded-xl border border-chrome-line bg-chrome-raised/60 p-3">
       <div className="flex items-baseline justify-between">
         <span className="text-[13px] font-medium text-chrome-text">
-          저장 용량
+          NAS 저장 용량
         </span>
         <span className="text-[13px] tabular-nums text-chrome-muted">
           {percentLabel}

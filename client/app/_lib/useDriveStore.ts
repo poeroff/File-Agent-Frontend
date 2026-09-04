@@ -555,13 +555,17 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
     [uploadFiles],
   );
 
-  // Fetches a presigned URL and triggers a browser download from S3 directly.
+  // Files: presigned URL, downloaded from S3 directly. Folders: streamed as a
+  // zip through our API (there's no single S3 object to presign for a folder).
   const downloadItem = useCallback(
     async (id: string) => {
       const item = items.find((i) => i.id === id);
-      if (!item || item.type !== "file" || item.trashed) return;
+      if (!item || item.trashed) return;
       try {
-        const url = await getDownloadUrl(item.id);
+        const url =
+          item.type === "folder"
+            ? `/api/drive/download-zip?key=${encodeURIComponent(item.id)}`
+            : await getDownloadUrl(item.id);
         const link = document.createElement("a");
         link.href = url;
         link.rel = "noopener";

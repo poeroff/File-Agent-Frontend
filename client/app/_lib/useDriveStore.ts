@@ -201,6 +201,13 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
     }
   }, [applyServerItems, notify]);
 
+  // The server-rendered initial list can be silently empty — page.tsx swallows
+  // backend fetch failures (e.g. a Vercel → backend timeout) and renders an
+  // empty drive. Re-fetching once on mount self-heals that case.
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
   // Loads the Trash view's contents the first time it's opened, merging them
   // into the live items already on screen (which stay put). Later refreshes
   // keep it current on their own once trashLoadedRef is set.

@@ -1,8 +1,7 @@
 "use client";
 
 import { useMemo, type ComponentType } from "react";
-import { Clock, Star, Trash2 } from "lucide-react";
-import type { ActiveView } from "@/app/_lib/types";
+import { Clock, Star, Trash2, Users } from "lucide-react";
 import type { DriveStore } from "@/app/_lib/useDriveStore";
 import { StorageMeter } from "@/app/_components/shell/StorageMeter";
 import { UploadActions } from "@/app/_components/upload/UploadActions";
@@ -27,7 +26,15 @@ function DrawerIcon({ className = "" }: { className?: string }) {
   );
 }
 
-export function Sidebar({ store }: { store: DriveStore }) {
+export function Sidebar({
+  store,
+  activeDrive,
+  onSelectDrive,
+}: {
+  store: DriveStore;
+  activeDrive: "my" | "shared";
+  onSelectDrive: (drive: "my" | "shared") => void;
+}) {
   const counts = useMemo(() => {
     let drive = 0;
     let starred = 0;
@@ -53,33 +60,43 @@ export function Sidebar({ store }: { store: DriveStore }) {
       <UploadActions store={store} />
 
       <nav className="flex flex-col gap-0.5">
+        {/* Drive rows switch which drive the app is bound to; the view rows
+            below act within whichever drive is active. Counts come from the
+            active store, so the inactive drive shows none. */}
         <NavItem
           icon={DrawerIcon}
           label="내 드라이브"
-          count={counts.drive}
-          view="my-drive"
-          store={store}
+          count={activeDrive === "my" ? counts.drive : 0}
+          active={activeDrive === "my" && store.activeView === "my-drive"}
+          onClick={() => onSelectDrive("my")}
+        />
+        <NavItem
+          icon={Users}
+          label="공용 드라이브"
+          count={activeDrive === "shared" ? counts.drive : 0}
+          active={activeDrive === "shared" && store.activeView === "my-drive"}
+          onClick={() => onSelectDrive("shared")}
         />
         <NavItem
           icon={Clock}
           label="최근 항목"
           count={recentCount}
-          view="recent"
-          store={store}
+          active={store.activeView === "recent"}
+          onClick={() => store.setView("recent")}
         />
         <NavItem
           icon={Star}
           label="중요"
           count={counts.starred}
-          view="starred"
-          store={store}
+          active={store.activeView === "starred"}
+          onClick={() => store.setView("starred")}
         />
         <NavItem
           icon={Trash2}
           label="휴지통"
           count={counts.trash}
-          view="trash"
-          store={store}
+          active={store.activeView === "trash"}
+          onClick={() => store.setView("trash")}
         />
       </nav>
 
@@ -94,20 +111,18 @@ function NavItem({
   icon: Icon,
   label,
   count,
-  view,
-  store,
+  active,
+  onClick,
 }: {
   icon: ComponentType<{ className?: string }>;
   label: string;
   count: number;
-  view: ActiveView;
-  store: DriveStore;
+  active: boolean;
+  onClick: () => void;
 }) {
-  const active = store.activeView === view;
-
   return (
     <button
-      onClick={() => store.setView(view)}
+      onClick={onClick}
       aria-current={active ? "page" : undefined}
       title={label}
       className={`group relative flex items-center justify-center gap-3 rounded-lg py-2.5 text-left text-[15px] transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-bright md:justify-start md:py-2 md:pl-3 md:pr-2.5 ${

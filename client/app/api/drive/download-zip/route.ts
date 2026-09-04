@@ -10,13 +10,15 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const key = new URL(request.url).searchParams.get("key");
+  const params = new URL(request.url).searchParams;
+  const key = params.get("key");
   if (!key) {
     return NextResponse.json({ error: "key is required" }, { status: 400 });
   }
+  const drive = params.get("drive") === "shared" ? "&drive=shared" : "";
 
   const res = await fetch(
-    `${process.env.BACKEND_URL}/files/download-zip?key=${encodeURIComponent(key)}`,
+    `${process.env.BACKEND_URL}/files/download-zip?key=${encodeURIComponent(key)}${drive}`,
     { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
   );
   if (!res.ok || !res.body) {

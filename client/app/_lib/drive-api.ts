@@ -3,6 +3,13 @@ import type { DriveItem } from "@/app/_lib/types";
 // Client-side calls to our own same-origin /api/drive/* route handlers, which
 // attach the backend token server-side. The browser never sees the token.
 
+// Which drive an API call targets: the caller's own, or the shared one every
+// signed-in user sees. Omitted = personal, so existing callers stay unchanged.
+export type DriveScope = "shared" | undefined;
+
+const withDrive = (body: Record<string, unknown>, drive: DriveScope) =>
+  drive ? { ...body, drive } : body;
+
 /** The one JSON-POST helper: throws on non-2xx, returns the parsed body. */
 async function postDrive(
   path: string,
@@ -21,8 +28,10 @@ async function postDrive(
   return res.json().catch(() => undefined);
 }
 
-export async function listItems(): Promise<DriveItem[]> {
-  const res = await fetch("/api/drive", { cache: "no-store" });
+export async function listItems(drive?: DriveScope): Promise<DriveItem[]> {
+  const res = await fetch(`/api/drive${drive ? "?drive=shared" : ""}`, {
+    cache: "no-store",
+  });
   if (!res.ok) throw new Error("Failed to list drive contents");
   return res.json();
 }
@@ -30,8 +39,9 @@ export async function listItems(): Promise<DriveItem[]> {
 export async function createFolderApi(
   path: string,
   name: string,
+  drive?: DriveScope,
 ): Promise<void> {
-  await postDrive("/api/drive/folder", { path, name });
+  await postDrive("/api/drive/folder", withDrive({ path, name }, drive));
 }
 
 // Files larger than one part are uploaded in chunks (S3 multipart): each part
@@ -80,11 +90,12 @@ export async function uploadFileApi(
   file: File,
   onProgress?: UploadProgress,
   signal?: AbortSignal,
+  drive?: DriveScope,
 ): Promise<void> {
   if (file.size > BASE_PART_SIZE) {
-    return multipartUpload(path, name, file, onProgress, signal);
+    return multipartUpload(path, name, file, onProgress, signal, drive);
   }
-  return singlePutUpload(path, name, file, onProgress, signal);
+  return singlePutUpload(path, name, file, onProgress, signal, drive);
 }
 
 /** Part size for a file: 10MB until that would need more than ~1000 parts. */
@@ -176,10 +187,15 @@ async function singlePutUpload(
   file: File,
   onProgress?: UploadProgress,
   signal?: AbortSignal,
+  drive?: DriveScope,
 ): Promise<void> {
   const contentType = file.type || "application/octet-stream";
   const { url, key } = (await withRetry(() =>
-    postDrive("/api/drive/upload-url", { path, name, contentType }, signal),
+    postDrive(
+      "/api/drive/upload-url",
+      withDrive({ path, name, contentType }, drive),
+      signal,
+    ),
   )) as { url: string; key: string };
 
   try {
@@ -199,19 +215,25 @@ async function singlePutUpload(
   } catch (error) {
     // Release the reserved name and blob so a failed or cancelled upload leaves
     // nothing behind (no signal here, so the cleanup runs even after an abort).
-    void postDrive("/api/drive/upload/abort", { key }).catch(() => {});
+    void postDrive("/api/drive/upload/abort", withDrive({ key }, drive)).catch(
+      () => {},
+    );
     throw error;
   }
 
   await withRetry(() =>
-    postDrive("/api/drive/upload/complete", { key }, signal),
+    postDrive("/api/drive/upload/complete", withDrive({ key }, drive), signal),
   );
   onProgress?.(100);
 }
 
 /** Renames a file or folder. Folders keep their contents. */
-export async function renameApi(path: string, name: string): Promise<void> {
-  await postDrive("/api/drive/rename", { path, name });
+export async function renameApi(
+  path: string,
+  name: string,
+  drive?: DriveScope,
+): Promise<void> {
+  await postDrive("/api/drive/rename", withDrive({ path, name }, drive));
 }
 
 /** One picked Drive item's outcome, so a partial import can be reported. */
@@ -232,12 +254,12 @@ export async function importFromGoogleDriveApi(
   accessToken: string,
   fileIds: string[],
   path: string,
+  drive?: DriveScope,
 ): Promise<{ imported: number; results: ImportResult[] }> {
-  return (await postDrive("/api/drive/import/gdrive", {
-    accessToken,
-    fileIds,
-    path,
-  })) as { imported: number; results: ImportResult[] };
+  return (await postDrive(
+    "/api/drive/import/gdrive",
+    withDrive({ accessToken, fileIds, path }, drive),
+  )) as { imported: number; results: ImportResult[] };
 }
 
 /**
@@ -253,6 +275,7 @@ function createPartUrls(
   uploadId: string,
   partCount: number,
   signal?: AbortSignal,
+  drive?: DriveScope,
 ) {
   const urls = new Map<number, string>();
   const inFlight = new Map<number, Promise<void>>();
@@ -263,7 +286,7 @@ function createPartUrls(
     const parts = Math.min(PRESIGN_WINDOW, partCount - firstPart + 1);
     const { urls: signed } = (await postDrive(
       "/api/drive/multipart/urls",
-      { key, uploadId, parts, firstPart },
+      withDrive({ key, uploadId, parts, firstPart }, drive),
       signal,
     )) as { urls: string[] };
     signed.forEach((url, index) => urls.set(firstPart + index, url));
@@ -335,6 +358,7 @@ async function multipartUpload(
   file: File,
   onProgress?: UploadProgress,
   signal?: AbortSignal,
+  drive?: DriveScope,
 ): Promise<void> {
   const partSize = partSizeFor(file.size);
   const partCount = Math.ceil(file.size / partSize);
@@ -348,12 +372,15 @@ async function multipartUpload(
   // won't preview large PDFs, images or videos inline.
   const { uploadId, key } = (await postDrive(
     "/api/drive/multipart/create",
-    { path, name, contentType: file.type || "application/octet-stream" },
+    withDrive(
+      { path, name, contentType: file.type || "application/octet-stream" },
+      drive,
+    ),
     signal,
   )) as { uploadId: string; key: string };
 
   try {
-    const partUrls = createPartUrls(key, uploadId, partCount, signal);
+    const partUrls = createPartUrls(key, uploadId, partCount, signal, drive);
     const parts: { partNumber: number; etag: string }[] = new Array(partCount);
     // Progress = bytes of finished parts + live bytes of the parts currently
     // in flight, so several concurrent parts add up to one smooth percentage.
@@ -395,21 +422,30 @@ async function multipartUpload(
       Array.from({ length: Math.min(PART_CONCURRENCY, partCount) }, worker),
     );
 
-    await postDrive("/api/drive/multipart/complete", { key, uploadId, parts }, signal);
+    await postDrive(
+      "/api/drive/multipart/complete",
+      withDrive({ key, uploadId, parts }, drive),
+      signal,
+    );
     onProgress?.(100);
   } catch (error) {
     // Free the orphaned parts so they don't linger + incur storage cost.
-    void postDrive("/api/drive/multipart/abort", { key, uploadId }).catch(
-      () => {},
-    );
+    void postDrive(
+      "/api/drive/multipart/abort",
+      withDrive({ key, uploadId }, drive),
+    ).catch(() => {});
     throw error;
   }
 }
 
 // Presigned URL: attachment by default, inline for previewing images/PDFs/….
-async function presignedUrl(key: string, inline: boolean): Promise<string> {
+async function presignedUrl(
+  key: string,
+  inline: boolean,
+  drive?: DriveScope,
+): Promise<string> {
   const res = await fetch(
-    `/api/drive/download?key=${encodeURIComponent(key)}${inline ? "&inline=1" : ""}`,
+    `/api/drive/download?key=${encodeURIComponent(key)}${inline ? "&inline=1" : ""}${drive ? "&drive=shared" : ""}`,
     { cache: "no-store" },
   );
   if (!res.ok) throw new Error("Failed to get download URL");
@@ -417,27 +453,40 @@ async function presignedUrl(key: string, inline: boolean): Promise<string> {
   return url;
 }
 
-export const getDownloadUrl = (key: string) => presignedUrl(key, false);
-export const getPreviewUrl = (key: string) => presignedUrl(key, true);
+export const getDownloadUrl = (key: string, drive?: DriveScope) =>
+  presignedUrl(key, false, drive);
+export const getPreviewUrl = (key: string, drive?: DriveScope) =>
+  presignedUrl(key, true, drive);
 
-export async function listTrashApi(): Promise<DriveItem[]> {
-  const res = await fetch("/api/drive/trash", { cache: "no-store" });
+export async function listTrashApi(drive?: DriveScope): Promise<DriveItem[]> {
+  const res = await fetch(`/api/drive/trash${drive ? "?drive=shared" : ""}`, {
+    cache: "no-store",
+  });
   if (!res.ok) throw new Error("Failed to list trash");
   return res.json();
 }
 
-export async function moveToTrashApi(paths: string[]): Promise<void> {
-  await postDrive("/api/drive/trash", { paths });
+export async function moveToTrashApi(
+  paths: string[],
+  drive?: DriveScope,
+): Promise<void> {
+  await postDrive("/api/drive/trash", withDrive({ paths }, drive));
 }
 
-export async function restoreApi(entryIds: string[]): Promise<void> {
-  await postDrive("/api/drive/restore", { entryIds });
+export async function restoreApi(
+  entryIds: string[],
+  drive?: DriveScope,
+): Promise<void> {
+  await postDrive("/api/drive/restore", withDrive({ entryIds }, drive));
 }
 
-export async function deleteTrashApi(entryIds: string[]): Promise<void> {
-  await postDrive("/api/drive/trash/delete", { entryIds });
+export async function deleteTrashApi(
+  entryIds: string[],
+  drive?: DriveScope,
+): Promise<void> {
+  await postDrive("/api/drive/trash/delete", withDrive({ entryIds }, drive));
 }
 
-export async function emptyTrashApi(): Promise<void> {
-  await postDrive("/api/drive/trash/empty");
+export async function emptyTrashApi(drive?: DriveScope): Promise<void> {
+  await postDrive("/api/drive/trash/empty", drive ? { drive } : undefined);
 }

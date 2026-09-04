@@ -26,7 +26,7 @@ export function Breadcrumbs({ store }: { store: DriveStore }) {
   return (
     <nav aria-label="위치" className="flex min-w-0 items-center text-[15px]">
       <Crumb
-        label="내 드라이브"
+        label={store.driveLabel}
         current={atRoot}
         onClick={() => store.navigateToFolder(null)}
       />

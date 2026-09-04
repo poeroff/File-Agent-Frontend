@@ -15,9 +15,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "key is required" }, { status: 400 });
   }
   const inline = params.get("inline") === "1" ? "&inline=1" : "";
+  const drive = params.get("drive") === "shared" ? "&drive=shared" : "";
 
   const res = await fetch(
-    `${process.env.BACKEND_URL}/files/download?key=${encodeURIComponent(key)}${inline}`,
+    `${process.env.BACKEND_URL}/files/download?key=${encodeURIComponent(key)}${inline}${drive}`,
     { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
   );
   const data = await res.json().catch(() => ({}));

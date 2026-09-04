@@ -184,7 +184,7 @@ export function FileExplorer({ store }: { store: DriveStore }) {
     // Other files: open a tab now (within the click gesture, so it isn't
     // popup-blocked) and point it at the inline URL once it's ready.
     const tab = window.open("", "_blank");
-    getPreviewUrl(item.id)
+    getPreviewUrl(item.id, driveScope)
       .then((url) => {
         if (tab) tab.location.href = url;
       })
@@ -194,7 +194,8 @@ export function FileExplorer({ store }: { store: DriveStore }) {
       });
   }
 
-  const currentFolderName = store.breadcrumbs.at(-1)?.name ?? "내 드라이브";
+  const driveScope = store.drive === "shared" ? ("shared" as const) : undefined;
+  const currentFolderName = store.breadcrumbs.at(-1)?.name ?? store.driveLabel;
 
   return (
     <div
@@ -441,6 +442,7 @@ export function FileExplorer({ store }: { store: DriveStore }) {
         <PreviewModal
           key={previewItem.id}
           item={previewItem}
+          drive={driveScope}
           onClose={() => setPreviewItem(null)}
           onDownload={() => store.downloadItem(previewItem.id)}
         />

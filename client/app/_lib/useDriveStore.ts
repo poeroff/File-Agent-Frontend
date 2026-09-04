@@ -76,7 +76,13 @@ function nextAvailableName(
   return candidate;
 }
 
-export function useDriveStore(initialItems: DriveItem[] = []) {
+export function useDriveStore(
+  initialItems: DriveItem[] = [],
+  drive: "my" | "shared" = "my",
+) {
+  // Passed straight through to drive-api: undefined = personal drive.
+  const scope = drive === "shared" ? ("shared" as const) : undefined;
+  const driveLabel = drive === "shared" ? "공용 드라이브" : "내 드라이브";
   const [items, setItems] = useState<DriveItem[]>(initialItems);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<ActiveView>("my-drive");
@@ -178,9 +184,9 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
       // Trash is lazy (loaded on the first Trash-view open), so a routine
       // refresh only re-fetches it once it's already in play.
       const [live, trash] = await Promise.all([
-        listItems(),
+        listItems(scope),
         trashLoadedRef.current
-          ? listTrashApi()
+          ? listTrashApi(scope)
           : Promise.resolve<DriveItem[]>([]),
       ]);
       const combined = [...live, ...trash];
@@ -199,7 +205,7 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
     } catch (error) {
       console.error("Failed to refresh drive contents", error);
     }
-  }, [applyServerItems, notify]);
+  }, [applyServerItems, notify, scope]);
 
   // The server-rendered initial list can be silently empty — page.tsx swallows
   // backend fetch failures (e.g. a Vercel → backend timeout) and renders an
@@ -213,7 +219,7 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
   // keep it current on their own once trashLoadedRef is set.
   const loadTrash = useCallback(async () => {
     try {
-      const trash = await listTrashApi();
+      const trash = await listTrashApi(scope);
       trashLoadedRef.current = true;
       setItems((prev) => {
         const starred = new Set(prev.filter((i) => i.starred).map((i) => i.id));
@@ -225,7 +231,7 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
     } catch (error) {
       console.error("Failed to load trash", error);
     }
-  }, []);
+  }, [scope]);
 
   const navigateToFolder = useCallback((folderId: string | null) => {
     setActiveView("my-drive");
@@ -344,13 +350,13 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
       if (!trimmed) return;
       const finalName = nextAvailableName(trimmed, currentSiblingNames(), true);
       try {
-        await createFolderApi(currentPrefix, finalName);
+        await createFolderApi(currentPrefix, finalName, scope);
         await refresh();
       } catch (error) {
         console.error("Failed to create folder", error);
       }
     },
-    [currentPrefix, currentSiblingNames, refresh],
+    [currentPrefix, currentSiblingNames, refresh, scope],
   );
 
   /**
@@ -368,6 +374,7 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
               accessToken,
               fileIds,
               currentPrefix,
+              scope,
             );
             const failed = results.filter((r) => r.error || r.skipped);
             if (failed.length > 0) {
@@ -382,7 +389,7 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
         },
       );
     },
-    [currentPrefix, notify, refresh, runActivity],
+    [currentPrefix, notify, refresh, runActivity, scope],
   );
 
   const uploadFiles = useCallback(
@@ -456,6 +463,7 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
                 ),
               ),
             signal,
+            scope,
           );
           setUploads((prev) =>
             prev.map((t) =>
@@ -523,7 +531,7 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
         );
       }, 4000);
     },
-    [currentPrefix, currentSiblingNames, refresh],
+    [currentPrefix, currentSiblingNames, refresh, scope],
   );
 
   const dismissUpload = useCallback((taskId: string) => {
@@ -571,8 +579,8 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
       try {
         const url =
           item.type === "folder"
-            ? `/api/drive/download-zip?key=${encodeURIComponent(item.id)}`
-            : await getDownloadUrl(item.id);
+            ? `/api/drive/download-zip?key=${encodeURIComponent(item.id)}${scope ? "&drive=shared" : ""}`
+            : await getDownloadUrl(item.id, scope);
         const link = document.createElement("a");
         link.href = url;
         link.rel = "noopener";
@@ -584,7 +592,7 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
         notify("다운로드에 실패했어요. 잠시 후 다시 시도해 주세요");
       }
     },
-    [items, notify],
+    [items, notify, scope],
   );
 
   // Sharing = handing someone a presigned S3 link. The backend signs these for
@@ -595,7 +603,7 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
       const item = items.find((i) => i.id === id);
       if (!item || item.type !== "file" || item.trashed) return;
       try {
-        const url = await getPreviewUrl(item.id);
+        const url = await getPreviewUrl(item.id, scope);
         await navigator.clipboard.writeText(url);
         notify("공유 링크를 복사했어요 (5분간 유효)");
       } catch (error) {
@@ -603,7 +611,7 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
         notify("링크를 복사하지 못했어요. 다시 시도해 주세요");
       }
     },
-    [items, notify],
+    [items, notify, scope],
   );
 
   // A real rename: the server changes one row, so it costs the same whether
@@ -622,7 +630,7 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
       );
       await runActivity(`${item.name} 이름 변경`, async () => {
         try {
-          await renameApi(id, trimmed);
+          await renameApi(id, trimmed, scope);
         } finally {
           // Also on failure: the refresh is what puts the old name back after
           // the optimistic update above.
@@ -630,7 +638,7 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
         }
       });
     },
-    [items, refresh, runActivity],
+    [items, refresh, runActivity, scope],
   );
 
   const toggleStar = useCallback((id: string) => {
@@ -653,13 +661,13 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
       await runActivity(
         `${paths.length}개 항목을 휴지통으로 이동`,
         async () => {
-          await moveToTrashApi(paths);
+          await moveToTrashApi(paths, scope);
           setSelectedIds(new Set());
           await refresh();
         },
       );
     },
-    [items, refresh, runActivity],
+    [items, refresh, runActivity, scope],
   );
 
   // Trash items carry an id of `trash:{entryId}`.
@@ -673,12 +681,12 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
       const entryIds = entryIdsOf(ids);
       if (entryIds.length === 0) return;
       await runActivity(`${entryIds.length}개 항목 복원`, async () => {
-        await restoreApi(entryIds);
+        await restoreApi(entryIds, scope);
         setSelectedIds(new Set());
         await refresh();
       });
     },
-    [refresh, runActivity],
+    [refresh, runActivity, scope],
   );
 
   const deleteForever = useCallback(
@@ -686,21 +694,21 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
       const entryIds = entryIdsOf(ids);
       if (entryIds.length === 0) return;
       await runActivity(`${entryIds.length}개 항목 영구 삭제`, async () => {
-        await deleteTrashApi(entryIds);
+        await deleteTrashApi(entryIds, scope);
         setSelectedIds(new Set());
         await refresh();
       });
     },
-    [refresh, runActivity],
+    [refresh, runActivity, scope],
   );
 
   const emptyTrash = useCallback(async () => {
     await runActivity("휴지통 비우기", async () => {
-      await emptyTrashApi();
+      await emptyTrashApi(scope);
       setSelectedIds(new Set());
       await refresh();
     });
-  }, [refresh, runActivity]);
+  }, [refresh, runActivity, scope]);
 
   const toggleSelect = useCallback((id: string, additive: boolean) => {
     setSelectionAnchor(id);
@@ -747,6 +755,8 @@ export function useDriveStore(initialItems: DriveItem[] = []) {
   }, []);
 
   return {
+    drive,
+    driveLabel,
     items,
     visibleItems,
     breadcrumbs,

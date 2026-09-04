@@ -4,14 +4,16 @@ import { useEffect, useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Download, Loader2, X } from "lucide-react";
 import type { DriveItem } from "@/app/_lib/types";
-import { getPreviewUrl } from "@/app/_lib/drive-api";
+import { getPreviewUrl, type DriveScope } from "@/app/_lib/drive-api";
 
 export function PreviewModal({
   item,
+  drive,
   onClose,
   onDownload,
 }: {
   item: DriveItem;
+  drive?: DriveScope;
   onClose: () => void;
   onDownload: () => void;
 }) {
@@ -22,7 +24,7 @@ export function PreviewModal({
 
   useEffect(() => {
     let active = true;
-    getPreviewUrl(item.id)
+    getPreviewUrl(item.id, drive)
       .then((url) => {
         if (active) setResult({ url });
       })
@@ -32,7 +34,7 @@ export function PreviewModal({
     return () => {
       active = false;
     };
-  }, [item.id]);
+  }, [item.id, drive]);
 
   // A full-bleed lightbox rather than the card dialog, so it uses the Radix
   // primitive directly (portal + focus trap + Escape/scroll-lock) with its own

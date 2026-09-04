@@ -119,27 +119,6 @@ export function StorageMeter({ items }: { items: DriveItem[] }) {
         )}
       </p>
 
-      {slices.length > 0 && (
-        <ul className="mt-2.5 space-y-1.5 border-t border-chrome-line pt-2.5">
-          {slices.slice(0, 3).map(({ category, bytes }) => (
-            <li
-              key={category}
-              className="flex items-center gap-2 text-xs text-chrome-muted"
-            >
-              <span
-                className="h-2 w-2 shrink-0 rounded-full"
-                style={{ backgroundColor: CATEGORY_STYLES[category].color }}
-              />
-              <span className="flex-1 truncate">
-                {CATEGORY_STYLES[category].label}
-              </span>
-              <span className="tabular-nums text-chrome-text/85">
-                {formatBytes(bytes)}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }

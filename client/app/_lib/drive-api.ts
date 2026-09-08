@@ -107,7 +107,7 @@ function partSizeFor(size: number): number {
 }
 
 /** A user-initiated cancellation (aborted fetch), not a failure to retry. */
-export function isAbortError(error: unknown): boolean {
+function isAbortError(error: unknown): boolean {
   return (error as { name?: string } | null)?.name === "AbortError";
 }
 
@@ -123,6 +123,68 @@ async function withRetry<T>(attempt: () => Promise<T>): Promise<T> {
     }
   }
 }
+
+// ---- Request coalescing ----------------------------------------------------
+// Uploading many small files is bound by round trips, not bytes: each file
+// needs a sign before its PUT and a completion after. Callers that arrive
+// within the same short window are merged into one batched backend call, so a
+// 6-wide upload pool costs ~2 API calls per wave instead of 12.
+
+/**
+ * Wraps a batch API into a per-item call: items enqueued within `delayMs` (per
+ * drive) are flushed together, and `run` must return results in input order.
+ */
+function coalesce<Item, Result>(
+  run: (items: Item[], drive: DriveScope) => Promise<Result[]>,
+  delayMs = 10,
+) {
+  type Queue = {
+    items: Item[];
+    settlers: { resolve: (r: Result) => void; reject: (e: unknown) => void }[];
+  };
+  const queues = new Map<string, Queue>();
+
+  return (item: Item, drive: DriveScope): Promise<Result> =>
+    new Promise((resolve, reject) => {
+      const key = drive ?? "";
+      let queue = queues.get(key);
+      if (!queue) {
+        queue = { items: [], settlers: [] };
+        queues.set(key, queue);
+        const flush = queue;
+        setTimeout(() => {
+          queues.delete(key);
+          run(flush.items, drive).then(
+            (results) =>
+              flush.settlers.forEach((s, i) => s.resolve(results[i])),
+            (error) => flush.settlers.forEach((s) => s.reject(error)),
+          );
+        }, delayMs);
+      }
+      queue.items.push(item);
+      queue.settlers.push({ resolve, reject });
+    });
+}
+
+/** Reserves an upload slot + PUT URL, batched across concurrent callers. */
+const reserveUpload = coalesce(
+  async (
+    files: { path: string; name: string; contentType: string }[],
+    drive: DriveScope,
+  ) => {
+    const { files: reserved } = (await postDrive(
+      "/api/drive/upload-urls",
+      withDrive({ files }, drive),
+    )) as { files: { url: string; key: string; path: string }[] };
+    return reserved;
+  },
+);
+
+/** Marks an upload finished, batched across concurrent callers. */
+const completeUpload = coalesce(async (keys: string[], drive: DriveScope) => {
+  await postDrive("/api/drive/upload/complete-batch", withDrive({ keys }, drive));
+  return keys.map(() => undefined);
+});
 
 /**
  * A PUT via XMLHttpRequest instead of fetch, because only XHR reports upload
@@ -190,13 +252,12 @@ async function singlePutUpload(
   drive?: DriveScope,
 ): Promise<void> {
   const contentType = file.type || "application/octet-stream";
-  const { url, key } = (await withRetry(() =>
-    postDrive(
-      "/api/drive/upload-url",
-      withDrive({ path, name, contentType }, drive),
-      signal,
-    ),
-  )) as { url: string; key: string };
+  // Coalesced: concurrent uploads share one batched sign request. No signal —
+  // the call is small and shared with other files, and an abort right after
+  // signing is still cleaned up by the abort call below.
+  const { url, key } = await withRetry(() =>
+    reserveUpload({ path, name, contentType }, drive),
+  );
 
   try {
     await withRetry(async () => {
@@ -221,9 +282,7 @@ async function singlePutUpload(
     throw error;
   }
 
-  await withRetry(() =>
-    postDrive("/api/drive/upload/complete", withDrive({ key }, drive), signal),
-  );
+  await withRetry(() => completeUpload(key, drive));
   onProgress?.(100);
 }
 

@@ -324,14 +324,6 @@ export function useDriveStore(
     );
   }, []);
 
-  const usedBytes = useMemo(
-    () =>
-      items
-        .filter((item) => item.type === "file" && !item.trashed)
-        .reduce((sum, item) => sum + (item.size ?? 0), 0),
-    [items],
-  );
-
   // Names already used in the folder currently being viewed.
   const currentSiblingNames = useCallback(
     () =>
@@ -735,7 +727,6 @@ export function useDriveStore(
     uploads,
     uploadTrayCollapsed,
     activities,
-    usedBytes,
     navigateToFolder,
     setView,
     setViewMode,

@@ -236,32 +236,6 @@ export async function renameApi(
   await postDrive("/api/drive/rename", withDrive({ path, name }, drive));
 }
 
-/** One picked Drive item's outcome, so a partial import can be reported. */
-export interface ImportResult {
-  name: string;
-  path?: string;
-  bytes?: number;
-  skipped?: string;
-  error?: string;
-}
-
-/**
- * Copies picked Google Drive files into the drive. The server does the
- * transfer, so it keeps going at full speed and doesn't depend on the browser
- * relaying every byte.
- */
-export async function importFromGoogleDriveApi(
-  accessToken: string,
-  fileIds: string[],
-  path: string,
-  drive?: DriveScope,
-): Promise<{ imported: number; results: ImportResult[] }> {
-  return (await postDrive(
-    "/api/drive/import/gdrive",
-    withDrive({ accessToken, fileIds, path }, drive),
-  )) as { imported: number; results: ImportResult[] };
-}
-
 /**
  * Signs part URLs a window at a time and hands them out on demand.
  *

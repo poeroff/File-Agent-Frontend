@@ -1,16 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type ComponentType } from "react";
+import { useRef, useState, type ComponentType } from "react";
 import { CloudUpload, FolderPlus, FolderUp } from "lucide-react";
 import type { DriveStore } from "@/app/_lib/useDriveStore";
 import { PromptDialog } from "@/app/_components/ui/PromptDialog";
 import { toUploadList } from "@/app/_lib/upload-entries";
-import { GoogleDriveIcon } from "@/app/_components/upload/GoogleDriveIcon";
-import {
-  loadGooglePickerConfig,
-  pickFromGoogleDrive,
-  requestFolderAccess,
-} from "@/app/_lib/google-picker";
 
 /**
  * Uploading is the whole point of the app, so it is a single visible button
@@ -19,49 +13,8 @@ import {
  */
 export function UploadActions({ store }: { store: DriveStore }) {
   const [folderModalOpen, setFolderModalOpen] = useState(false);
-  // Only offered once the Google project is configured, so the button never
-  // opens a picker that can't work. Set from the fetch callback, never during
-  // the effect itself.
-  const [driveImportReady, setDriveImportReady] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    let active = true;
-    loadGooglePickerConfig()
-      .then((config) => {
-        if (active) setDriveImportReady(Boolean(config));
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const runImport = async () => {
-    try {
-      const picked = await pickFromGoogleDrive();
-      if (!picked || picked.files.length === 0) return;
-
-      // Reading inside a folder needs broader Drive permission than picking
-      // files does, so it's asked for here — only when a folder was actually
-      // picked, and at the moment the reason for asking is obvious. If it's
-      // declined, the files still import and the folders report why they didn't.
-      let accessToken = picked.accessToken;
-      if (picked.files.some((file) => file.isFolder)) {
-        accessToken = await requestFolderAccess().catch(
-          () => picked.accessToken,
-        );
-      }
-
-      await store.importFromGoogleDrive(
-        accessToken,
-        picked.files.map((file) => file.id),
-      );
-    } catch (error) {
-      console.error("Google Drive import failed", error);
-    }
-  };
 
   return (
     <div className="flex flex-col gap-2">
@@ -86,17 +39,6 @@ export function UploadActions({ store }: { store: DriveStore }) {
           onClick={() => setFolderModalOpen(true)}
         />
       </div>
-
-      {/* Files are spread across services, so pulling them in matters as much
-          as uploading. Hidden unless the Google project keys are configured. */}
-      {driveImportReady && (
-        <GhostAction
-          icon={GoogleDriveIcon}
-          label="Google Drive에서 가져오기"
-          fullWidth
-          onClick={runImport}
-        />
-      )}
 
       <input
         ref={fileInputRef}
@@ -140,20 +82,16 @@ function GhostAction({
   icon: Icon,
   label,
   onClick,
-  fullWidth = false,
 }: {
-  // Not just LucideIcon: the Drive button uses a brand mark that keeps its own
-  // colours, so anything that takes a className fits here.
   icon: ComponentType<{ className?: string }>;
   label: string;
   onClick: () => void;
-  fullWidth?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
       title={label}
-      className={`flex h-9 items-center justify-center gap-1.5 rounded-lg border border-chrome-line bg-chrome-hover/60 text-xs font-medium text-chrome-text/85 transition hover:bg-chrome-fill hover:text-chrome-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-bright ${fullWidth ? "w-full" : ""}`}
+      className="flex h-9 items-center justify-center gap-1.5 rounded-lg border border-chrome-line bg-chrome-hover/60 text-xs font-medium text-chrome-text/85 transition hover:bg-chrome-fill hover:text-chrome-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-bright"
     >
       <Icon className="h-4 w-4 text-chrome-muted md:h-3.5 md:w-3.5" />
       <span className="hidden md:inline">{label}</span>

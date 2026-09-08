@@ -16,7 +16,6 @@ import {
   emptyTrashApi,
   getDownloadUrl,
   getPreviewUrl,
-  importFromGoogleDriveApi,
   listItems,
   listTrashApi,
   moveToTrashApi,
@@ -357,39 +356,6 @@ export function useDriveStore(
       }
     },
     [currentPrefix, currentSiblingNames, refresh, scope],
-  );
-
-  /**
-   * Brings picked Google Drive files in. The server streams them, so this only
-   * waits for the outcome — and reports partial results honestly, since one
-   * unreadable file shouldn't read as "import failed".
-   */
-  const importFromGoogleDrive = useCallback(
-    async (accessToken: string, fileIds: string[]) => {
-      await runActivity(
-        `Google Drive에서 ${fileIds.length}개 가져오기`,
-        async () => {
-          try {
-            const { imported, results } = await importFromGoogleDriveApi(
-              accessToken,
-              fileIds,
-              currentPrefix,
-              scope,
-            );
-            const failed = results.filter((r) => r.error || r.skipped);
-            if (failed.length > 0) {
-              console.warn("Some Drive items were not imported", failed);
-              notify(`${imported}개 가져왔어요 · ${failed.length}개는 건너뜀`);
-            } else {
-              notify(`${imported}개 가져왔어요`);
-            }
-          } finally {
-            await refresh();
-          }
-        },
-      );
-    },
-    [currentPrefix, notify, refresh, runActivity, scope],
   );
 
   const uploadFiles = useCallback(
@@ -782,7 +748,6 @@ export function useDriveStore(
     cancelUploads,
     downloadItem,
     copyShareLink,
-    importFromGoogleDrive,
     renameItem,
     toggleStar,
     moveToTrash,

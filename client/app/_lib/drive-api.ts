@@ -50,10 +50,11 @@ export async function createFolderApi(
 // Pinned just under Cloudflare's 100MB request-body cap: every request rides
 // through the tunnel, so the fewest, fattest parts possible spend the least
 // time on per-request overhead. The cost is that one retry re-sends 95MB.
-// ponytail: 32MB, not 95 — Cloudflare returns 524 if the origin can't answer
-// within 100s, and through this site's tunnel (~1-10MB/s shared across parts)
-// a 95MB part regularly took longer than that. Raise it if the tunnel gets faster.
-export const BASE_PART_SIZE = 32 * 1024 * 1024;
+// ponytail: 16MB, not 95 — Cloudflare returns 524 if the origin can't answer
+// within 100s. Measured through this site's tunnel: one stream ~0.2MB/s, four
+// streams ~5MB/s aggregate, so the recipe is small parts × many streams.
+// 16MB at ~0.3MB/s per stream still clears 100s with margin.
+export const BASE_PART_SIZE = 16 * 1024 * 1024;
 // S3's own limits: parts (except the last) must be ≥5MB, and there can be at
 // most 10,000 of them.
 const MAX_PART_COUNT = 10000;
@@ -61,7 +62,10 @@ const MAX_PART_COUNT = 10000;
 // sign, how many requests we make, and how much work a single retry redoes, so
 // bigger files get bigger parts instead of more of them: a 20GB file becomes
 // ~1000×21MB parts rather than 2048×10MB.
-const TARGET_PART_COUNT = 1000;
+// ponytail: 4000 (not 1000) so files up to 64GB keep 16MB parts; beyond that
+// parts grow toward 95MB and single-stream throughput through the tunnel makes
+// 524s likely — >100GB single files need a direct/S3 path, not the tunnel.
+const TARGET_PART_COUNT = 4000;
 // Just under Cloudflare's 100MB request-body limit — uploads route through
 // the Cloudflare tunnel, and a bigger part gets a 413 there. 95MB (not a
 // flush 100) leaves margin at the boundary, and with the 10,000-part ceiling
@@ -79,9 +83,8 @@ const PRESIGN_WINDOW = 100;
 // browser's ~6-per-host HTTP/1.1 cap doesn't bind. 8×95MB in flight is fine
 // on a beefy client; single-stream throughput through the tunnel is usually
 // the limiter, and parallel streams are what fill the pipe.
-// ponytail: 2, not 8 — the tunnel is the bottleneck, so more parallel parts
-// only slow each one down and push it past Cloudflare's 100s 524 timeout.
-const PART_CONCURRENCY = 2;
+// Measured: the tunnel throttles per stream, aggregate scales with streams.
+const PART_CONCURRENCY = 8;
 
 // A part gets ~25s of retries spread over 6 attempts. The old 3×400ms gave up
 // after 2.4s, which is shorter than an ordinary Wi-Fi hiccup — and losing one

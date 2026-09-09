@@ -455,11 +455,10 @@ export function useDriveStore(
       // Must match the single-PUT threshold in drive-api, or files in the gap
       // get multipart parts *and* small-queue parallelism at the same time.
       const SMALL_FILE_BYTES = BASE_PART_SIZE;
-      // ponytail: 3 and 1, not 6 and 2 — the Cloudflare tunnel (~3MB/s) is
-      // shared by every in-flight request, and a part that can't finish in
-      // 100s dies with a 524. One big file at a time keeps its parts moving.
-      const SMALL_CONCURRENCY = 3;
-      const LARGE_CONCURRENCY = 1;
+      const SMALL_CONCURRENCY = 6;
+      // 2 files × 8 parts = 16 streams: the tunnel throttles per stream, so
+      // width is what fills it; 16MB parts keep each under Cloudflare's 100s.
+      const LARGE_CONCURRENCY = 2;
 
       const runPool = (queue: typeof tasks, size: number) =>
         Promise.all(

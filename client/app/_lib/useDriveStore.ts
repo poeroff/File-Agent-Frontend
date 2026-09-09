@@ -22,6 +22,7 @@ import {
   renameApi,
   restoreApi,
   uploadFileApi,
+  BASE_PART_SIZE,
 } from "@/app/_lib/drive-api";
 import { readEntries, type UploadInput } from "@/app/_lib/upload-entries";
 
@@ -451,9 +452,14 @@ export function useDriveStore(
       // already runs its own parts in parallel, so stacking several of them up
       // just queues requests behind each other — S3 speaks HTTP/1.1 and the
       // browser only opens ~6 connections per host.
-      const SMALL_FILE_BYTES = 95 * 1024 * 1024; // the single-PUT threshold
-      const SMALL_CONCURRENCY = 6;
-      const LARGE_CONCURRENCY = 2;
+      // Must match the single-PUT threshold in drive-api, or files in the gap
+      // get multipart parts *and* small-queue parallelism at the same time.
+      const SMALL_FILE_BYTES = BASE_PART_SIZE;
+      // ponytail: 3 and 1, not 6 and 2 — the Cloudflare tunnel (~3MB/s) is
+      // shared by every in-flight request, and a part that can't finish in
+      // 100s dies with a 524. One big file at a time keeps its parts moving.
+      const SMALL_CONCURRENCY = 3;
+      const LARGE_CONCURRENCY = 1;
 
       const runPool = (queue: typeof tasks, size: number) =>
         Promise.all(

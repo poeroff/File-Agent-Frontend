@@ -12,6 +12,10 @@ EXPOSE 3000
 CMD ["pnpm", "dev"]
 
 FROM base AS build
+# NEXT_PUBLIC_* values are inlined into the browser bundle at build time, so
+# they must arrive here as build args (docker-compose passes them from .env).
+ARG NEXT_PUBLIC_DIRECT_STORAGE_HOST
+ENV NEXT_PUBLIC_DIRECT_STORAGE_HOST=$NEXT_PUBLIC_DIRECT_STORAGE_HOST
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN pnpm run build

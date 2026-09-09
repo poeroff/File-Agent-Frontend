@@ -50,7 +50,10 @@ export async function createFolderApi(
 // Pinned just under Cloudflare's 100MB request-body cap: every request rides
 // through the tunnel, so the fewest, fattest parts possible spend the least
 // time on per-request overhead. The cost is that one retry re-sends 95MB.
-const BASE_PART_SIZE = 95 * 1024 * 1024;
+// ponytail: 32MB, not 95 — Cloudflare returns 524 if the origin can't answer
+// within 100s, and through this site's tunnel (~1-10MB/s shared across parts)
+// a 95MB part regularly took longer than that. Raise it if the tunnel gets faster.
+export const BASE_PART_SIZE = 32 * 1024 * 1024;
 // S3's own limits: parts (except the last) must be ≥5MB, and there can be at
 // most 10,000 of them.
 const MAX_PART_COUNT = 10000;
@@ -76,7 +79,9 @@ const PRESIGN_WINDOW = 100;
 // browser's ~6-per-host HTTP/1.1 cap doesn't bind. 8×95MB in flight is fine
 // on a beefy client; single-stream throughput through the tunnel is usually
 // the limiter, and parallel streams are what fill the pipe.
-const PART_CONCURRENCY = 8;
+// ponytail: 2, not 8 — the tunnel is the bottleneck, so more parallel parts
+// only slow each one down and push it past Cloudflare's 100s 524 timeout.
+const PART_CONCURRENCY = 2;
 
 // A part gets ~25s of retries spread over 6 attempts. The old 3×400ms gave up
 // after 2.4s, which is shorter than an ordinary Wi-Fi hiccup — and losing one

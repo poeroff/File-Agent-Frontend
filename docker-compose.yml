@@ -9,8 +9,19 @@ services:
   client:
     build:
       context: ./client
+      args:
+        NEXT_PUBLIC_DIRECT_STORAGE_HOST: ${NEXT_PUBLIC_DIRECT_STORAGE_HOST}
     env_file:
       - .env
     ports:
       - "${CLIENT_PORT:-3000}:3000"
     restart: unless-stopped
+    networks:
+      - default
+      - backend
+
+# The backend's compose network, so BACKEND_URL can be http://main-server:4000.
+networks:
+  backend:
+    external: true
+    name: file-agent-backend_default

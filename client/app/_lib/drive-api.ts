@@ -56,10 +56,11 @@ const MAX_PART_COUNT = 10000;
 // bigger files get bigger parts instead of more of them: a 20GB file becomes
 // ~1000×21MB parts rather than 2048×10MB.
 const TARGET_PART_COUNT = 1000;
-// Capped well under Cloudflare's 100MB request-body limit — uploads route
-// through the Cloudflare tunnel, and a bigger part gets a 413 there. The
-// 10,000-part ceiling still allows files up to 500GB.
-const MAX_PART_SIZE = 50 * 1024 * 1024;
+// Just under Cloudflare's 100MB request-body limit — uploads route through
+// the Cloudflare tunnel, and a bigger part gets a 413 there. 95MB (not a
+// flush 100) leaves margin at the boundary, and with the 10,000-part ceiling
+// allows single files up to ~950GB.
+const MAX_PART_SIZE = 95 * 1024 * 1024;
 // How many part URLs to sign per round trip. Small enough that the response
 // stays a few tens of KB and each URL is signed shortly before it's used.
 const PRESIGN_WINDOW = 100;

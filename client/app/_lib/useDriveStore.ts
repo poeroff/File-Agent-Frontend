@@ -517,15 +517,24 @@ export function useDriveStore(
         ...prev,
         { id, label: "파일 목록을 읽는 중…", status: "running" },
       ]);
-      let inputs: UploadInput[];
+      let inputs: UploadInput[] = [];
       try {
-        inputs = await readEntries(roots);
+        const read = await readEntries(roots);
+        inputs = read.inputs;
+        if (read.unreadable > 0) {
+          notify(
+            `${read.unreadable}개 파일을 읽을 수 없어 건너뛰었어요 (클라우드 전용 파일은 먼저 이 PC에 내려받아 주세요)`,
+          );
+        }
+      } catch (error) {
+        console.error("Failed to read dropped items", error);
+        notify("놓은 항목을 읽지 못했어요. 다시 시도해 주세요");
       } finally {
         setActivities((prev) => prev.filter((a) => a.id !== id));
       }
       if (inputs.length > 0) await uploadFiles(inputs);
     },
-    [uploadFiles],
+    [notify, uploadFiles],
   );
 
   // Files: presigned URL, downloaded from S3 directly. Folders: streamed as a

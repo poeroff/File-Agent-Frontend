@@ -403,13 +403,17 @@ async function multipartUpload(
   // Multipart can only set the type here — the parts can't — so without this
   // the finished object is stored as binary/octet-stream and the browser
   // won't preview large PDFs, images or videos inline.
-  const { uploadId, key } = (await postDrive(
-    "/api/drive/multipart/create",
-    withDrive(
-      { path, name, contentType: file.type || "application/octet-stream" },
-      drive,
+  // Retried like everything else: a transient failure here (e.g. the Vercel →
+  // backend DNS blips) used to fail the whole file before a byte was sent.
+  const { uploadId, key } = (await withRetry(() =>
+    postDrive(
+      "/api/drive/multipart/create",
+      withDrive(
+        { path, name, contentType: file.type || "application/octet-stream" },
+        drive,
+      ),
+      signal,
     ),
-    signal,
   )) as { uploadId: string; key: string };
 
   try {
@@ -455,10 +459,14 @@ async function multipartUpload(
       Array.from({ length: Math.min(PART_CONCURRENCY, partCount) }, worker),
     );
 
-    await postDrive(
-      "/api/drive/multipart/complete",
-      withDrive({ key, uploadId, parts }, drive),
-      signal,
+    // Retried: failing this one call after minutes of transfer used to throw
+    // the whole upload away.
+    await withRetry(() =>
+      postDrive(
+        "/api/drive/multipart/complete",
+        withDrive({ key, uploadId, parts }, drive),
+        signal,
+      ),
     );
     onProgress?.(100);
   } catch (error) {

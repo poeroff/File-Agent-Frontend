@@ -90,6 +90,10 @@ const PART_CONCURRENCY = 8;
 // after 2.4s, which is shorter than an ordinary Wi-Fi hiccup — and losing one
 // part loses the whole file, so a multi-hour upload needs to ride out a blip.
 const PART_ATTEMPTS = 6;
+// ponytail: a stream through the tunnel sometimes stalls near 0B/s while its
+// siblings fly. Left alone it sits there until Cloudflare's 100s 524; instead
+// a part with no upload progress for this long is cut and retried at once.
+const STALL_MS = 20_000;
 const RETRY_BASE_MS = 1000;
 const RETRY_CAP_MS = 8000;
 
@@ -294,9 +298,25 @@ function xhrPut(
 
     const onAbort = () => xhr.abort();
     opts.signal?.addEventListener("abort", onAbort, { once: true });
-    const cleanup = () => opts.signal?.removeEventListener("abort", onAbort);
+
+    // Stall watchdog: reset on every progress event; firing aborts the xhr
+    // with a retryable (non-Abort) error so the part is re-sent.
+    let stalled = false;
+    let stallTimer: ReturnType<typeof setTimeout> | undefined;
+    const armStall = () => {
+      clearTimeout(stallTimer);
+      stallTimer = setTimeout(() => {
+        stalled = true;
+        xhr.abort();
+      }, STALL_MS);
+    };
+    const cleanup = () => {
+      clearTimeout(stallTimer);
+      opts.signal?.removeEventListener("abort", onAbort);
+    };
 
     xhr.upload.onprogress = (event) => {
+      armStall();
       if (event.lengthComputable) opts.onProgress?.(event.loaded);
     };
     xhr.onload = () => {
@@ -309,8 +329,13 @@ function xhrPut(
     };
     xhr.onabort = () => {
       cleanup();
-      reject(new DOMException("Aborted", "AbortError"));
+      reject(
+        stalled
+          ? new Error(`Upload stalled for ${STALL_MS / 1000}s`)
+          : new DOMException("Aborted", "AbortError"),
+      );
     };
+    armStall();
     xhr.send(body);
   });
 }

@@ -456,9 +456,11 @@ export function useDriveStore(
       // get multipart parts *and* small-queue parallelism at the same time.
       const SMALL_FILE_BYTES = BASE_PART_SIZE;
       const SMALL_CONCURRENCY = 6;
-      // 2 files × 8 parts = 16 streams: the tunnel throttles per stream, so
-      // width is what fills it; 16MB parts keep each under Cloudflare's 100s.
-      const LARGE_CONCURRENCY = 2;
+      // One large file at a time: Cloudflare shares one HTTP/2 connection
+      // unevenly between streams, so two files' gauges take turns "freezing"
+      // even though the line is saturated. One file × 12 parts fills the
+      // line and its gauge moves continuously.
+      const LARGE_CONCURRENCY = 1;
 
       const runPool = (queue: typeof tasks, size: number) =>
         Promise.all(

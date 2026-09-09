@@ -84,7 +84,8 @@ const PRESIGN_WINDOW = 100;
 // on a beefy client; single-stream throughput through the tunnel is usually
 // the limiter, and parallel streams are what fill the pipe.
 // Measured: the tunnel throttles per stream, aggregate scales with streams.
-const PART_CONCURRENCY = 8;
+// 12 streams on one file saturate this site's ~12MB/s line by themselves.
+const PART_CONCURRENCY = 12;
 
 // A part gets ~25s of retries spread over 6 attempts. The old 3×400ms gave up
 // after 2.4s, which is shorter than an ordinary Wi-Fi hiccup — and losing one

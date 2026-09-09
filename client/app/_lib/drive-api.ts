@@ -135,6 +135,68 @@ async function withRetry<T>(attempt: () => Promise<T>): Promise<T> {
   }
 }
 
+// ---- Tailnet fast path -----------------------------------------------------
+// Upload bytes normally ride browser → Cloudflare → tunnel → backend, which
+// caps out at internet speeds even when the user sits next to the server. If
+// NEXT_PUBLIC_DIRECT_STORAGE_HOST names the backend's tailnet address
+// (tailscale serve), clients that can reach it send their part PUTs straight
+// there — LAN speed, no Cloudflare — while everyone else (and any failure)
+// falls back to the public URL. Only uploads use this: share links must stay
+// on the public host, and downloads are fine through Cloudflare.
+
+const DIRECT_HOST = process.env.NEXT_PUBLIC_DIRECT_STORAGE_HOST;
+
+// One probe per page load, shared by every upload. A user who walks out of
+// the tailnet mid-session just fails over per-part (see fastPut).
+let directProbe: Promise<boolean> | null = null;
+function directReachable(): Promise<boolean> {
+  if (!DIRECT_HOST) return Promise.resolve(false);
+  if (!directProbe) {
+    directProbe = fetch(`https://${DIRECT_HOST}/`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(2000),
+    })
+      .then((res) => res.ok)
+      .catch(() => false);
+  }
+  return directProbe;
+}
+
+/** The upload URL rewritten onto the tailnet host, when that's reachable. */
+async function directUrl(url: string): Promise<string | null> {
+  if (!DIRECT_HOST || !(await directReachable())) return null;
+  try {
+    const parsed = new URL(url);
+    // Only the backend's own proxy endpoint exists on the tailnet host; a raw
+    // presigned S3 URL (no S3_ENDPOINT proxying) must be left alone.
+    if (!parsed.pathname.startsWith("/storage/proxy")) return null;
+    parsed.host = DIRECT_HOST;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+/** xhrPut that tries the tailnet host first and falls back to the public URL. */
+async function fastPut(
+  url: string,
+  body: Blob,
+  opts: Parameters<typeof xhrPut>[2] = {},
+): ReturnType<typeof xhrPut> {
+  const direct = await directUrl(url);
+  if (direct) {
+    try {
+      return await xhrPut(direct, body, opts);
+    } catch (error) {
+      if (isAbortError(error)) throw error;
+      // The direct path died (left the tailnet, serve stopped) — disable it
+      // for the rest of the session and resend this part the public way.
+      directProbe = Promise.resolve(false);
+    }
+  }
+  return xhrPut(url, body, opts);
+}
+
 // ---- Request coalescing ----------------------------------------------------
 // Uploading many small files is bound by round trips, not bytes: each file
 // needs a sign before its PUT and a completion after. Callers that arrive
@@ -272,7 +334,7 @@ async function singlePutUpload(
 
   try {
     await withRetry(async () => {
-      const res = await xhrPut(url, file, {
+      const res = await fastPut(url, file, {
         signal,
         contentType,
         onProgress: (loaded) =>
@@ -379,7 +441,7 @@ function putPart(
     // Inside the retry on purpose: signing can fail on a flaky network too,
     // and a failed part is worth re-signing rather than abandoning.
     const url = await partUrls.get(partNumber);
-    const res = await xhrPut(url, blob, { signal, onProgress });
+    const res = await fastPut(url, blob, { signal, onProgress });
     if (res.status === 403) {
       // On a long upload this is virtually always an expired signature, and
       // it's recoverable: re-sign the window and retry instead of failing

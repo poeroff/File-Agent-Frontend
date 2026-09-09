@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import {
   Check,
   ChevronDown,
@@ -31,9 +32,35 @@ function IndeterminateBar({ className }: { className?: string }) {
 }
 
 export function UploadTray({ store }: { store: DriveStore }) {
-  if (store.uploads.length === 0) return null;
-
   const uploading = store.uploads.filter((task) => task.status === "uploading");
+
+  // Live transfer speed: bytes-so-far sampled against the clock, smoothed so
+  // the number doesn't flicker with every progress tick.
+  const loadedBytes = store.uploads
+    .filter((task) => task.status !== "error")
+    .reduce((sum, task) => sum + (task.size * task.progress) / 100, 0);
+  const speedSample = useRef<{ bytes: number; t: number } | null>(null);
+  const [speedBps, setSpeedBps] = useState(0);
+  useEffect(() => {
+    if (uploading.length === 0) {
+      speedSample.current = null;
+      setSpeedBps(0);
+      return;
+    }
+    const now = performance.now();
+    const prev = speedSample.current;
+    if (!prev) {
+      speedSample.current = { bytes: loadedBytes, t: now };
+      return;
+    }
+    const dt = (now - prev.t) / 1000;
+    if (dt < 1) return; // sample at most once a second
+    const instant = Math.max(0, loadedBytes - prev.bytes) / dt;
+    speedSample.current = { bytes: loadedBytes, t: now };
+    setSpeedBps((old) => (old === 0 ? instant : old * 0.7 + instant * 0.3));
+  }, [loadedBytes, uploading.length]);
+
+  if (store.uploads.length === 0) return null;
   const failedCount = store.uploads.filter((task) => task.status === "error").length;
   // Weight each file's progress by its size so the overall bar reflects real
   // bytes transferred — a tiny file finishing shouldn't jump the whole batch.
@@ -73,6 +100,11 @@ export function UploadTray({ store }: { store: DriveStore }) {
           <Check className="h-4 w-4 shrink-0 text-accent-bright" />
         )}
         <span className="flex-1 truncate text-sm font-medium">{header}</span>
+        {uploading.length > 0 && speedBps > 0 && (
+          <span className="shrink-0 text-xs tabular-nums text-chrome-muted">
+            {formatBytes(speedBps)}/s
+          </span>
+        )}
         <span className="text-[13px] font-semibold tabular-nums text-chrome-text">
           {uploading.length > 0 && overall === 0 ? "준비 중" : `${overall}%`}
         </span>

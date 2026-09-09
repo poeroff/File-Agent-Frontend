@@ -451,7 +451,7 @@ export function useDriveStore(
       // already runs its own parts in parallel, so stacking several of them up
       // just queues requests behind each other — S3 speaks HTTP/1.1 and the
       // browser only opens ~6 connections per host.
-      const SMALL_FILE_BYTES = 10 * 1024 * 1024; // the single-PUT threshold
+      const SMALL_FILE_BYTES = 32 * 1024 * 1024; // the single-PUT threshold
       const SMALL_CONCURRENCY = 6;
       const LARGE_CONCURRENCY = 2;
 

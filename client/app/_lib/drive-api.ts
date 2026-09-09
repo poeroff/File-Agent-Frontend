@@ -47,7 +47,10 @@ export async function createFolderApi(
 // Files larger than one part are uploaded in chunks (S3 multipart): each part
 // is PUT straight to S3 with its own retry, so a blip only re-sends that part,
 // not the whole file — and we can report real progress.
-const BASE_PART_SIZE = 10 * 1024 * 1024;
+// 32MB (not the old 10): every request rides through Cloudflare now, so fewer,
+// fatter parts spend less time on per-request overhead. Still well under the
+// 100MB request-body limit, and a retry re-sends at most 32MB.
+const BASE_PART_SIZE = 32 * 1024 * 1024;
 // S3's own limits: parts (except the last) must be ≥5MB, and there can be at
 // most 10,000 of them.
 const MAX_PART_COUNT = 10000;
@@ -69,7 +72,7 @@ const PRESIGN_WINDOW = 100;
 // to hide per-request latency without multiplying memory or retry cost. Raising
 // it wouldn't buy much anyway — S3 is HTTP/1.1, so the browser caps concurrent
 // connections to one host at ~6 across all files being uploaded.
-const PART_CONCURRENCY = 4;
+const PART_CONCURRENCY = 6;
 
 // A part gets ~25s of retries spread over 6 attempts. The old 3×400ms gave up
 // after 2.4s, which is shorter than an ordinary Wi-Fi hiccup — and losing one
